@@ -37,39 +37,6 @@ typedef struct {
    size_t read_index;
 } Preprocessor;
 
-static char try_decode_trigraph(Preprocessor *proc) {
-   if (proc->read_index + 2 >= proc->size) {
-      return '\0';
-   }
-
-   if (proc->src[proc->read_index] != '?' || proc->src[proc->read_index + 1] != '?') {
-      return '\0';
-   }
-
-   switch (proc->src[proc->read_index + 2]) {
-   case '=':
-      return '#';
-   case '(':
-      return '[';
-   case '/':
-      return '\\';
-   case ')':
-      return ']';
-   case '\'':
-      return '^';
-   case '<':
-      return '{';
-   case '!':
-      return '|';
-   case '>':
-      return '}';
-   case '-':
-      return '~';
-   default:
-      return '\0';
-   }
-}
-
 static char try_line_splice(Preprocessor *proc) {
    if (proc->read_index + 2 >= proc->size) {
       return '\0';
@@ -87,11 +54,6 @@ static char peek(Preprocessor *proc) {
       return '\0';
    }
 
-   char trigraph = try_decode_trigraph(proc);
-   if (trigraph != '\0') {
-      return trigraph;
-   }
-
    char next_line_char = try_line_splice(proc);
    if (next_line_char != '\0') {
       return next_line_char;
@@ -103,12 +65,6 @@ static char peek(Preprocessor *proc) {
 static char next(Preprocessor *proc) {
    if (proc->read_index >= proc->size) {
       return '\0';
-   }
-
-   char trigraph = try_decode_trigraph(proc);
-   if (trigraph != '\0') {
-      proc->read_index += 3;
-      return trigraph;
    }
 
    char next_line_char = try_line_splice(proc);
