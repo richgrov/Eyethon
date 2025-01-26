@@ -20,7 +20,7 @@ static void token_free(Token *tok) {
    }
 }
 
-static Token operator_token(TokenType type) {
+static Token mk_token(TokenType type) {
    Token result = {.type = type};
    return result;
 }
@@ -230,109 +230,109 @@ static Token identifier(Preprocessor *proc, char first) {
    switch (identifier[0]) {
    case 'a':
       if (strcmp(identifier, "as") == 0) {
-         return operator_token(TOK_AS);
+         return mk_token(TOK_AS);
       } else if (strcmp(identifier, "assert") == 0) {
-         return operator_token(TOK_ASSERT);
+         return mk_token(TOK_ASSERT);
       }
       break;
    case 'b':
       if (strcmp(identifier, "break") == 0) {
-         return operator_token(TOK_BREAK);
+         return mk_token(TOK_BREAK);
       } else if (strcmp(identifier, "breakpoint") == 0) {
-         return operator_token(TOK_BREAKPOINT);
+         return mk_token(TOK_BREAKPOINT);
       }
       break;
    case 'c':
       if (strcmp(identifier, "class") == 0) {
-         return operator_token(TOK_CLASS);
+         return mk_token(TOK_CLASS);
       } else if (strcmp(identifier, "class_name") == 0) {
-         return operator_token(TOK_CLASS_NAME);
+         return mk_token(TOK_CLASS_NAME);
       } else if (strcmp(identifier, "const") == 0) {
-         return operator_token(TOK_CONST);
+         return mk_token(TOK_CONST);
       } else if (strcmp(identifier, "continue") == 0) {
-         return operator_token(TOK_CONTINUE);
+         return mk_token(TOK_CONTINUE);
       }
       break;
    case 'e':
       if (strcmp(identifier, "elif") == 0) {
-         return operator_token(TOK_ELIF);
+         return mk_token(TOK_ELIF);
       } else if (strcmp(identifier, "else") == 0) {
-         return operator_token(TOK_ELSE);
+         return mk_token(TOK_ELSE);
       } else if (strcmp(identifier, "enum") == 0) {
-         return operator_token(TOK_ENUM);
+         return mk_token(TOK_ENUM);
       } else if (strcmp(identifier, "extends") == 0) {
-         return operator_token(TOK_EXTENDS);
+         return mk_token(TOK_EXTENDS);
       }
       break;
    case 'f':
       if (strcmp(identifier, "false") == 0) {
-         return operator_token(TOK_FALSE);
+         return mk_token(TOK_FALSE);
       } else if (strcmp(identifier, "for") == 0) {
-         return operator_token(TOK_FOR);
+         return mk_token(TOK_FOR);
       } else if (strcmp(identifier, "func") == 0) {
-         return operator_token(TOK_FUNC);
+         return mk_token(TOK_FUNC);
       }
       break;
    case 'i':
       if (strcmp(identifier, "if") == 0) {
-         return operator_token(TOK_IF);
+         return mk_token(TOK_IF);
       } else if (strcmp(identifier, "in") == 0) {
-         return operator_token(TOK_IN);
+         return mk_token(TOK_IN);
       } else if (strcmp(identifier, "is") == 0) {
-         return operator_token(TOK_IS);
+         return mk_token(TOK_IS);
       }
       break;
    case 'm':
       if (strcmp(identifier, "match") == 0) {
-         return operator_token(TOK_MATCH);
+         return mk_token(TOK_MATCH);
       }
       break;
    case 'n':
       if (strcmp(identifier, "null") == 0) {
-         return operator_token(TOK_NULL);
+         return mk_token(TOK_NULL);
       }
       break;
    case 'p':
       if (strcmp(identifier, "pass") == 0) {
-         return operator_token(TOK_PASS);
+         return mk_token(TOK_PASS);
       }
       break;
    case 'r':
       if (strcmp(identifier, "return") == 0) {
-         return operator_token(TOK_RETURN);
+         return mk_token(TOK_RETURN);
       }
       break;
    case 's':
       if (strcmp(identifier, "self") == 0) {
-         return operator_token(TOK_SELF);
+         return mk_token(TOK_SELF);
       } else if (strcmp(identifier, "signal") == 0) {
-         return operator_token(TOK_SIGNAL);
+         return mk_token(TOK_SIGNAL);
       } else if (strcmp(identifier, "static") == 0) {
-         return operator_token(TOK_STATIC);
+         return mk_token(TOK_STATIC);
       } else if (strcmp(identifier, "super") == 0) {
-         return operator_token(TOK_SUPER);
+         return mk_token(TOK_SUPER);
       }
       break;
    case 't':
       if (strcmp(identifier, "true") == 0) {
-         return operator_token(TOK_TRUE);
+         return mk_token(TOK_TRUE);
       }
       break;
    case 'v':
       if (strcmp(identifier, "var") == 0) {
-         return operator_token(TOK_VAR);
+         return mk_token(TOK_VAR);
       }
       break;
    case 'w':
       if (strcmp(identifier, "when") == 0) {
-         return operator_token(TOK_WHEN);
+         return mk_token(TOK_WHEN);
       } else if (strcmp(identifier, "while") == 0) {
-         return operator_token(TOK_WHILE);
+         return mk_token(TOK_WHILE);
       }
       break;
    case 'y':
       if (strcmp(identifier, "yield") == 0) {
-         return operator_token(TOK_YIELD);
+         return mk_token(TOK_YIELD);
       }
       break;
    }
@@ -362,127 +362,127 @@ static Token token(Preprocessor *proc) {
    case '+':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_PLUS_EQUAL);
+         return mk_token(TOK_PLUS_EQUAL);
       }
-      return operator_token(TOK_PLUS);
+      return mk_token(TOK_PLUS);
 
    case '-':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_MINUS_EQUAL);
+         return mk_token(TOK_MINUS_EQUAL);
       } else if (peek(proc) == '>') {
          next(proc);
-         return operator_token(TOK_ARROW);
+         return mk_token(TOK_ARROW);
       }
-      return operator_token(TOK_MINUS);
+      return mk_token(TOK_MINUS);
 
    case '*':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_STAR_EQUAL);
+         return mk_token(TOK_STAR_EQUAL);
       }
-      return operator_token(TOK_STAR);
+      return mk_token(TOK_STAR);
 
    case '/':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_SLASH_EQUAL);
+         return mk_token(TOK_SLASH_EQUAL);
       }
-      return operator_token(TOK_SLASH);
+      return mk_token(TOK_SLASH);
 
    case '%':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_PERCENT_EQUAL);
+         return mk_token(TOK_PERCENT_EQUAL);
       }
-      return operator_token(TOK_PERCENT);
+      return mk_token(TOK_PERCENT);
 
    case '!':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_BANG_EQUAL);
+         return mk_token(TOK_BANG_EQUAL);
       }
-      return operator_token(TOK_BANG);
+      return mk_token(TOK_BANG);
 
    case '&':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_AMPERSAND_EQUAL);
+         return mk_token(TOK_AMPERSAND_EQUAL);
       }
-      return operator_token(TOK_AMPERSAND);
+      return mk_token(TOK_AMPERSAND);
 
    case '|':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_PIPE_EQUAL);
+         return mk_token(TOK_PIPE_EQUAL);
       }
-      return operator_token(TOK_PIPE);
+      return mk_token(TOK_PIPE);
 
    case '^':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_UP_CARET_EQUAL);
+         return mk_token(TOK_UP_CARET_EQUAL);
       }
-      return operator_token(TOK_UP_CARET);
+      return mk_token(TOK_UP_CARET);
 
    case '<':
       if (peek(proc) == '<') {
          next(proc);
-         return operator_token(TOK_DOUBLE_LCHEVRON);
+         return mk_token(TOK_DOUBLE_LCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_LCHEVRON_EQUAL);
+         return mk_token(TOK_LCHEVRON_EQUAL);
       }
 
-      return operator_token(TOK_LCHEVRON);
+      return mk_token(TOK_LCHEVRON);
 
    case '>':
       if (peek(proc) == '>') {
          next(proc);
-         return operator_token(TOK_DOUBLE_RCHEVRON);
+         return mk_token(TOK_DOUBLE_RCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_RCHEVRON_EQUAL);
+         return mk_token(TOK_RCHEVRON_EQUAL);
       }
 
-      return operator_token(TOK_LCHEVRON);
+      return mk_token(TOK_LCHEVRON);
 
    case '[':
-      return operator_token(TOK_LBRACKET);
+      return mk_token(TOK_LBRACKET);
 
    case ']':
-      return operator_token(TOK_RBRACKET);
+      return mk_token(TOK_RBRACKET);
 
    case '(':
-      return operator_token(TOK_LPAREN);
+      return mk_token(TOK_LPAREN);
 
    case ')':
-      return operator_token(TOK_RPAREN);
+      return mk_token(TOK_RPAREN);
 
    case '{':
-      return operator_token(TOK_LBRACE);
+      return mk_token(TOK_LBRACE);
 
    case '}':
-      return operator_token(TOK_RBRACE);
+      return mk_token(TOK_RBRACE);
 
    case '=':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(TOK_EQUAL_EQUAL);
+         return mk_token(TOK_EQUAL_EQUAL);
       }
-      return operator_token(TOK_EQUAL);
+      return mk_token(TOK_EQUAL);
 
    case '~':
-      return operator_token(TOK_TILDE);
+      return mk_token(TOK_TILDE);
 
    case ',':
-      return operator_token(TOK_COMMA);
+      return mk_token(TOK_COMMA);
 
    case ':':
-      return operator_token(TOK_COLON);
+      return mk_token(TOK_COLON);
 
    case ';':
-      return operator_token(TOK_SEMICOLON);
+      return mk_token(TOK_SEMICOLON);
 
    case '.': {
       char peek_char = peek(proc);
@@ -492,7 +492,7 @@ static Token token(Preprocessor *proc) {
       }
 
       if (peek_char != '.') {
-         return operator_token(TOK_DOT);
+         return mk_token(TOK_DOT);
       }
       next(proc);
 
@@ -501,7 +501,7 @@ static Token token(Preprocessor *proc) {
       }
       next(proc);
    }
-      return operator_token(TOK_ELIPSES);
+      return mk_token(TOK_ELIPSES);
 
    case '\'':
       return quoted_literal(proc, '\'', TOK_CHAR, true);
