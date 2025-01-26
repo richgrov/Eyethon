@@ -227,6 +227,116 @@ static Token identifier(Preprocessor *proc, char first) {
       next(proc);
    }
 
+   switch (identifier[0]) {
+   case 'a':
+      if (strcmp(identifier, "as") == 0) {
+         return operator_token(TOK_AS);
+      } else if (strcmp(identifier, "assert") == 0) {
+         return operator_token(TOK_ASSERT);
+      }
+      break;
+   case 'b':
+      if (strcmp(identifier, "break") == 0) {
+         return operator_token(TOK_BREAK);
+      } else if (strcmp(identifier, "breakpoint") == 0) {
+         return operator_token(TOK_BREAKPOINT);
+      }
+      break;
+   case 'c':
+      if (strcmp(identifier, "class") == 0) {
+         return operator_token(TOK_CLASS);
+      } else if (strcmp(identifier, "class_name") == 0) {
+         return operator_token(TOK_CLASS_NAME);
+      } else if (strcmp(identifier, "const") == 0) {
+         return operator_token(TOK_CONST);
+      } else if (strcmp(identifier, "continue") == 0) {
+         return operator_token(TOK_CONTINUE);
+      }
+      break;
+   case 'e':
+      if (strcmp(identifier, "elif") == 0) {
+         return operator_token(TOK_ELIF);
+      } else if (strcmp(identifier, "else") == 0) {
+         return operator_token(TOK_ELSE);
+      } else if (strcmp(identifier, "enum") == 0) {
+         return operator_token(TOK_ENUM);
+      } else if (strcmp(identifier, "extends") == 0) {
+         return operator_token(TOK_EXTENDS);
+      }
+      break;
+   case 'f':
+      if (strcmp(identifier, "false") == 0) {
+         return operator_token(TOK_FALSE);
+      } else if (strcmp(identifier, "for") == 0) {
+         return operator_token(TOK_FOR);
+      } else if (strcmp(identifier, "func") == 0) {
+         return operator_token(TOK_FUNC);
+      }
+      break;
+   case 'i':
+      if (strcmp(identifier, "if") == 0) {
+         return operator_token(TOK_IF);
+      } else if (strcmp(identifier, "in") == 0) {
+         return operator_token(TOK_IN);
+      } else if (strcmp(identifier, "is") == 0) {
+         return operator_token(TOK_IS);
+      }
+      break;
+   case 'm':
+      if (strcmp(identifier, "match") == 0) {
+         return operator_token(TOK_MATCH);
+      }
+      break;
+   case 'n':
+      if (strcmp(identifier, "null") == 0) {
+         return operator_token(TOK_NULL);
+      }
+      break;
+   case 'p':
+      if (strcmp(identifier, "pass") == 0) {
+         return operator_token(TOK_PASS);
+      }
+      break;
+   case 'r':
+      if (strcmp(identifier, "return") == 0) {
+         return operator_token(TOK_RETURN);
+      }
+      break;
+   case 's':
+      if (strcmp(identifier, "self") == 0) {
+         return operator_token(TOK_SELF);
+      } else if (strcmp(identifier, "signal") == 0) {
+         return operator_token(TOK_SIGNAL);
+      } else if (strcmp(identifier, "static") == 0) {
+         return operator_token(TOK_STATIC);
+      } else if (strcmp(identifier, "super") == 0) {
+         return operator_token(TOK_SUPER);
+      }
+      break;
+   case 't':
+      if (strcmp(identifier, "true") == 0) {
+         return operator_token(TOK_TRUE);
+      }
+      break;
+   case 'v':
+      if (strcmp(identifier, "var") == 0) {
+         return operator_token(TOK_VAR);
+      }
+      break;
+   case 'w':
+      if (strcmp(identifier, "when") == 0) {
+         return operator_token(TOK_WHEN);
+      } else if (strcmp(identifier, "while") == 0) {
+         return operator_token(TOK_WHILE);
+      }
+      break;
+   case 'y':
+      if (strcmp(identifier, "yield") == 0) {
+         return operator_token(TOK_YIELD);
+      }
+      break;
+   }
+
    char *str = malloc(identifier_index + 1);
    memcpy(str, identifier, identifier_index + 1);
 
@@ -512,6 +622,69 @@ const char *tok_to_str(Token tok) {
       return ".";
    case TOK_ELIPSES:
       return "...";
+
+   case TOK_AS:
+      return "as";
+   case TOK_ASSERT:
+      return "assert";
+   case TOK_BREAK:
+      return "break";
+   case TOK_BREAKPOINT:
+      return "breakpoint";
+   case TOK_CLASS:
+      return "class";
+   case TOK_CLASS_NAME:
+      return "class_name";
+   case TOK_CONST:
+      return "const";
+   case TOK_CONTINUE:
+      return "continue";
+   case TOK_ELIF:
+      return "elif";
+   case TOK_ELSE:
+      return "else";
+   case TOK_ENUM:
+      return "enum";
+   case TOK_EXTENDS:
+      return "extends";
+   case TOK_FALSE:
+      return "false";
+   case TOK_FOR:
+      return "for";
+   case TOK_FUNC:
+      return "func";
+   case TOK_IF:
+      return "if";
+   case TOK_IN:
+      return "in";
+   case TOK_IS:
+      return "is";
+   case TOK_MATCH:
+      return "match";
+   case TOK_NULL:
+      return "null";
+   case TOK_PASS:
+      return "pass";
+   case TOK_RETURN:
+      return "return";
+   case TOK_SELF:
+      return "self";
+   case TOK_SIGNAL:
+      return "signal";
+   case TOK_STATIC:
+      return "static";
+   case TOK_SUPER:
+      return "super";
+   case TOK_TRUE:
+      return "true";
+   case TOK_VAR:
+      return "var";
+   case TOK_WHEN:
+      return "when";
+   case TOK_WHILE:
+      return "while";
+   case TOK_YIELD:
+      return "yield";
 
    default:
       return "???";
