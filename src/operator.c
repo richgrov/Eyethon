@@ -42,10 +42,6 @@ const char *operator_to_str(Operator op) {
       return "|=";
    case OP_UP_CARET_EQUAL:
       return "^=";
-   case OP_DOUBLE_LCHEVRON_EQUAL:
-      return "<<=";
-   case OP_DOUBLE_RCHEVRON_EQUAL:
-      return ">>=";
    case OP_LBRACKET:
       return "[";
    case OP_RBRACKET:
@@ -76,14 +72,8 @@ const char *operator_to_str(Operator op) {
       return "=";
    case OP_TILDE:
       return "~";
-   case OP_INCREMENT:
-      return "++";
-   case OP_DECREMENT:
-      return "--";
    case OP_COMMA:
       return ",";
-   case OP_QUESTION:
-      return "?";
    case OP_COLON:
       return ":";
    case OP_SEMICOLON:
@@ -96,10 +86,6 @@ const char *operator_to_str(Operator op) {
       return "...";
    case OP_HASH:
       return "#";
-   case OP_DOUBLE_HASH:
-      return "##";
-   case OP_SIZEOF:
-      return "sizeof";
    default:
       return "???";
    }

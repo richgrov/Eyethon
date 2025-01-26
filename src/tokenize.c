@@ -280,10 +280,6 @@ static Token identifier(Preprocessor *proc, char first) {
       next(proc);
    }
 
-   if (strcmp(identifier, "sizeof") == 0) {
-      return operator_token(OP_SIZEOF);
-   }
-
    char *str = malloc(identifier_index + 1);
    memcpy(str, identifier, identifier_index + 1);
 
@@ -313,9 +309,6 @@ static Token token(Preprocessor *proc) {
       if (peek(proc) == '=') {
          next(proc);
          return operator_token(OP_PLUS_EQUAL);
-      } else if (peek(proc) == '+') {
-         next(proc);
-         return operator_token(OP_INCREMENT);
       }
       return operator_token(OP_PLUS);
 
@@ -323,9 +316,6 @@ static Token token(Preprocessor *proc) {
       if (peek(proc) == '=') {
          next(proc);
          return operator_token(OP_MINUS_EQUAL);
-      } else if (peek(proc) == '-') {
-         next(proc);
-         return operator_token(OP_DECREMENT);
       } else if (peek(proc) == '>') {
          next(proc);
          return operator_token(OP_ARROW);
@@ -388,12 +378,6 @@ static Token token(Preprocessor *proc) {
 
       if (peek(proc) == '<') {
          next(proc);
-
-         if (peek(proc) == '=') {
-            next(proc);
-            return operator_token(OP_DOUBLE_LCHEVRON_EQUAL);
-         }
-
          return operator_token(OP_DOUBLE_LCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
@@ -405,12 +389,6 @@ static Token token(Preprocessor *proc) {
    case '>':
       if (peek(proc) == '>') {
          next(proc);
-
-         if (peek(proc) == '=') {
-            next(proc);
-            return operator_token(OP_DOUBLE_RCHEVRON_EQUAL);
-         }
-
          return operator_token(OP_DOUBLE_RCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
@@ -450,9 +428,6 @@ static Token token(Preprocessor *proc) {
    case ',':
       return operator_token(OP_COMMA);
 
-   case '?':
-      return operator_token(OP_QUESTION);
-
    case ':':
       return operator_token(OP_COLON);
 
@@ -477,15 +452,6 @@ static Token token(Preprocessor *proc) {
       next(proc);
    }
       return operator_token(OP_ELIPSES);
-
-   case '#':
-      if (peek(proc) == '#') {
-         next(proc);
-         return operator_token(OP_DOUBLE_HASH);
-      }
-
-      proc->tokenize_header_state = HEADER_STATE_HASH;
-      return operator_token(OP_HASH);
 
    case '\'':
       return quoted_literal(proc, '\'', PROC_CHAR, true);

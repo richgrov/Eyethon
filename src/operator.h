@@ -22,8 +22,6 @@ typedef enum {
    OP_AMPERSAND_EQUAL,
    OP_PIPE_EQUAL,
    OP_UP_CARET_EQUAL,
-   OP_DOUBLE_LCHEVRON_EQUAL,
-   OP_DOUBLE_RCHEVRON_EQUAL,
    OP_LBRACKET,
    OP_RBRACKET,
    OP_LPAREN,
@@ -39,18 +37,13 @@ typedef enum {
    OP_EQUAL_EQUAL,
    OP_EQUAL,
    OP_TILDE,
-   OP_INCREMENT,
-   OP_DECREMENT,
    OP_COMMA,
-   OP_QUESTION,
    OP_COLON,
    OP_SEMICOLON,
    OP_ARROW,
    OP_DOT,
    OP_ELIPSES,
    OP_HASH,
-   OP_DOUBLE_HASH,
-   OP_SIZEOF,
 } Operator;
 
 const char *operator_to_str(Operator op);
