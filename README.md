@@ -1,11 +1,11 @@
-# fox
+# MicroGD
 
-ANSI-compliant C89 compiler for STM32
+GDScript interpreter for microcontrollers
 
 # Roadmap
 
-- [x] (in progress) Preprocessor tokenization
-- [ ] Preprocessing
-- [ ] Parsing
-- [ ] Assembler
-- [ ] Linker
+-   [x] (in progress) Tokenization
+-   [ ] Parsing
+-   [ ] Compiling
+-   [ ] Interpreting
+-   [ ] Optimization
