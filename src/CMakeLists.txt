@@ -5,8 +5,6 @@ set(SRC_FILES
   assert.h
   chars.h
   config.h
-  operator.c
-  operator.h
   tokenize.c
   tokenize.h
   error.c

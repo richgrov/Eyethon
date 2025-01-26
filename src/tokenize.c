@@ -7,27 +7,26 @@
 
 #include "chars.h"
 #include "config.h"
-#include "operator.h"
 
 static void token_free(Token *tok) {
    switch (tok->type) {
-   case PROC_IDENTIFIER:
-   case PROC_CHAR:
-   case PROC_NUMBER:
-   case PROC_STR:
+   case TOK_IDENTIFIER:
+   case TOK_CHAR:
+   case TOK_NUMBER:
+   case TOK_STR:
       free(tok->str_data);
    default:
       break;
    }
 }
 
-static Token operator_token(Operator op) {
-   Token result = {.type = PROC_OPERATOR, .op_data = op};
+static Token operator_token(TokenType type) {
+   Token result = {.type = type};
    return result;
 }
 
 static Token unexpected_char_token() {
-   Token result = {.type = PROC_ERROR, .err_data = ERR_UNEXPECTED};
+   Token result = {.type = TOK_ERROR, .err_data = ERR_UNEXPECTED};
    return result;
 }
 
@@ -119,7 +118,7 @@ static Token number(Preprocessor *proc, char first) {
    memcpy(str, number, number_index + 1);
 
    Token result = {
-      .type = PROC_NUMBER,
+      .type = TOK_NUMBER,
       .str_data = str,
    };
    return result;
@@ -232,7 +231,7 @@ static Token identifier(Preprocessor *proc, char first) {
    memcpy(str, identifier, identifier_index + 1);
 
    Token result = {
-      .type = PROC_IDENTIFIER,
+      .type = TOK_IDENTIFIER,
       .str_data = str,
    };
    return result;
@@ -246,134 +245,134 @@ static Token token(Preprocessor *proc) {
    char c = next(proc);
    switch (c) {
    case '\0':
-      result.type = PROC_ERROR;
+      result.type = TOK_ERROR;
       result.err_data = ERR_EOF;
       return result;
 
    case '+':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_PLUS_EQUAL);
+         return operator_token(TOK_PLUS_EQUAL);
       }
-      return operator_token(OP_PLUS);
+      return operator_token(TOK_PLUS);
 
    case '-':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_MINUS_EQUAL);
+         return operator_token(TOK_MINUS_EQUAL);
       } else if (peek(proc) == '>') {
          next(proc);
-         return operator_token(OP_ARROW);
+         return operator_token(TOK_ARROW);
       }
-      return operator_token(OP_MINUS);
+      return operator_token(TOK_MINUS);
 
    case '*':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_STAR_EQUAL);
+         return operator_token(TOK_STAR_EQUAL);
       }
-      return operator_token(OP_STAR);
+      return operator_token(TOK_STAR);
 
    case '/':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_SLASH_EQUAL);
+         return operator_token(TOK_SLASH_EQUAL);
       }
-      return operator_token(OP_SLASH);
+      return operator_token(TOK_SLASH);
 
    case '%':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_PERCENT_EQUAL);
+         return operator_token(TOK_PERCENT_EQUAL);
       }
-      return operator_token(OP_PERCENT);
+      return operator_token(TOK_PERCENT);
 
    case '!':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_BANG_EQUAL);
+         return operator_token(TOK_BANG_EQUAL);
       }
-      return operator_token(OP_BANG);
+      return operator_token(TOK_BANG);
 
    case '&':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_AMPERSAND_EQUAL);
+         return operator_token(TOK_AMPERSAND_EQUAL);
       }
-      return operator_token(OP_AMPERSAND);
+      return operator_token(TOK_AMPERSAND);
 
    case '|':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_PIPE_EQUAL);
+         return operator_token(TOK_PIPE_EQUAL);
       }
-      return operator_token(OP_PIPE);
+      return operator_token(TOK_PIPE);
 
    case '^':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_UP_CARET_EQUAL);
+         return operator_token(TOK_UP_CARET_EQUAL);
       }
-      return operator_token(OP_UP_CARET);
+      return operator_token(TOK_UP_CARET);
 
    case '<':
       if (peek(proc) == '<') {
          next(proc);
-         return operator_token(OP_DOUBLE_LCHEVRON);
+         return operator_token(TOK_DOUBLE_LCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_LCHEVRON_EQUAL);
+         return operator_token(TOK_LCHEVRON_EQUAL);
       }
 
-      return operator_token(OP_LCHEVRON);
+      return operator_token(TOK_LCHEVRON);
 
    case '>':
       if (peek(proc) == '>') {
          next(proc);
-         return operator_token(OP_DOUBLE_RCHEVRON);
+         return operator_token(TOK_DOUBLE_RCHEVRON);
       } else if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_RCHEVRON_EQUAL);
+         return operator_token(TOK_RCHEVRON_EQUAL);
       }
 
-      return operator_token(OP_LCHEVRON);
+      return operator_token(TOK_LCHEVRON);
 
    case '[':
-      return operator_token(OP_LBRACKET);
+      return operator_token(TOK_LBRACKET);
 
    case ']':
-      return operator_token(OP_RBRACKET);
+      return operator_token(TOK_RBRACKET);
 
    case '(':
-      return operator_token(OP_LPAREN);
+      return operator_token(TOK_LPAREN);
 
    case ')':
-      return operator_token(OP_RPAREN);
+      return operator_token(TOK_RPAREN);
 
    case '{':
-      return operator_token(OP_LBRACE);
+      return operator_token(TOK_LBRACE);
 
    case '}':
-      return operator_token(OP_RBRACE);
+      return operator_token(TOK_RBRACE);
 
    case '=':
       if (peek(proc) == '=') {
          next(proc);
-         return operator_token(OP_EQUAL_EQUAL);
+         return operator_token(TOK_EQUAL_EQUAL);
       }
-      return operator_token(OP_EQUAL);
+      return operator_token(TOK_EQUAL);
 
    case '~':
-      return operator_token(OP_TILDE);
+      return operator_token(TOK_TILDE);
 
    case ',':
-      return operator_token(OP_COMMA);
+      return operator_token(TOK_COMMA);
 
    case ':':
-      return operator_token(OP_COLON);
+      return operator_token(TOK_COLON);
 
    case ';':
-      return operator_token(OP_SEMICOLON);
+      return operator_token(TOK_SEMICOLON);
 
    case '.': {
       char peek_char = peek(proc);
@@ -383,7 +382,7 @@ static Token token(Preprocessor *proc) {
       }
 
       if (peek_char != '.') {
-         return operator_token(OP_DOT);
+         return operator_token(TOK_DOT);
       }
       next(proc);
 
@@ -392,13 +391,13 @@ static Token token(Preprocessor *proc) {
       }
       next(proc);
    }
-      return operator_token(OP_ELIPSES);
+      return operator_token(TOK_ELIPSES);
 
    case '\'':
-      return quoted_literal(proc, '\'', PROC_CHAR, true);
+      return quoted_literal(proc, '\'', TOK_CHAR, true);
 
    case '"':
-      return quoted_literal(proc, '"', PROC_STR, true);
+      return quoted_literal(proc, '"', TOK_STR, true);
 
    default:
       if (is_digit(c) || c == '.') {
@@ -412,8 +411,111 @@ static Token token(Preprocessor *proc) {
    }
 
    result.char_data = c;
-   result.type = PROC_MISC;
+   result.type = TOK_MISC;
    return result;
+}
+
+const char *tok_to_str(Token tok) {
+   switch (tok.type) {
+   case TOK_ERROR:
+      if (tok.err_data == ERR_UNEXPECTED) {
+         return "Unexpected character";
+      } else {
+         return "End of file";
+      }
+
+   case TOK_IDENTIFIER:
+   case TOK_CHAR:
+   case TOK_NUMBER:
+   case TOK_STR:
+      return tok.str_data;
+
+   case TOK_PLUS:
+      return "+";
+   case TOK_MINUS:
+      return "-";
+   case TOK_STAR:
+      return "*";
+   case TOK_SLASH:
+      return "/";
+   case TOK_PERCENT:
+      return "%";
+   case TOK_BANG:
+      return "!";
+   case TOK_AMPERSAND:
+      return "&";
+   case TOK_PIPE:
+      return "|";
+   case TOK_UP_CARET:
+      return "^";
+   case TOK_DOUBLE_LCHEVRON:
+      return "<<";
+   case TOK_DOUBLE_RCHEVRON:
+      return ">>";
+   case TOK_PLUS_EQUAL:
+      return "+=";
+   case TOK_MINUS_EQUAL:
+      return "-=";
+   case TOK_STAR_EQUAL:
+      return "*=";
+   case TOK_SLASH_EQUAL:
+      return "/=";
+   case TOK_PERCENT_EQUAL:
+      return "%=";
+   case TOK_BANG_EQUAL:
+      return "!=";
+   case TOK_AMPERSAND_EQUAL:
+      return "&=";
+   case TOK_PIPE_EQUAL:
+      return "|=";
+   case TOK_UP_CARET_EQUAL:
+      return "^=";
+   case TOK_LBRACKET:
+      return "[";
+   case TOK_RBRACKET:
+      return "]";
+   case TOK_LPAREN:
+      return "(";
+   case TOK_RPAREN:
+      return ")";
+   case TOK_LBRACE:
+      return "{";
+   case TOK_RBRACE:
+      return "}";
+   case TOK_DOUBLE_AMPERSAND:
+      return "&&";
+   case TOK_DOUBLE_PIPE:
+      return "||";
+   case TOK_LCHEVRON:
+      return "<";
+   case TOK_RCHEVRON:
+      return ">";
+   case TOK_LCHEVRON_EQUAL:
+      return "<=";
+   case TOK_RCHEVRON_EQUAL:
+      return ">=";
+   case TOK_EQUAL_EQUAL:
+      return "==";
+   case TOK_EQUAL:
+      return "=";
+   case TOK_TILDE:
+      return "~";
+   case TOK_COMMA:
+      return ",";
+   case TOK_COLON:
+      return ":";
+   case TOK_SEMICOLON:
+      return ";";
+   case TOK_ARROW:
+      return "->";
+   case TOK_DOT:
+      return ".";
+   case TOK_ELIPSES:
+      return "...";
+
+   default:
+      return "???";
+   }
 }
 
 void tokenize(const char *src, size_t size) {
@@ -425,31 +527,10 @@ void tokenize(const char *src, size_t size) {
 
    Token tok = token(&proc);
    while (true) {
-      switch (tok.type) {
-      case PROC_IDENTIFIER:
-      case PROC_CHAR:
-      case PROC_NUMBER:
-      case PROC_STR:
-
-      case PROC_OPERATOR:
-         printf("%s\n", operator_to_str(tok.op_data));
-         break;
-
-      case PROC_MISC:
-         if (tok.char_data != '\r') {
-            printf("%c\n", tok.char_data);
-         }
-         break;
-
-      case PROC_ERROR:
-         if (tok.err_data == ERR_UNEXPECTED) {
-            printf("Unexpected character\n");
-         }
-         break;
-      }
+      printf("%s\n", tok_to_str(tok));
 
       token_free(&tok);
-      if (tok.type == PROC_ERROR) {
+      if (tok.type == TOK_ERROR) {
          break;
       }
 
