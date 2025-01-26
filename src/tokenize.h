@@ -8,7 +8,7 @@
 typedef enum {
    ERR_EOF,
    ERR_UNEXPECTED,
-} PreprocError;
+} TokenizeError;
 
 typedef enum {
    PROC_ERROR, // not in the standard, but used internally
@@ -19,18 +19,18 @@ typedef enum {
    PROC_CHEVRON_STR, // #include strings quoted in < >
    PROC_OPERATOR,
    PROC_MISC, // non-whitespace, non-comment character that isn't any of the above
-} PreprocType;
+} TokenType;
 
 typedef struct {
-   PreprocType type;
+   TokenType type;
    union {
       char char_data;
       char *str_data;
       Operator op_data;
-      PreprocError err_data;
+      TokenizeError err_data;
    };
-} PreprocToken;
+} Token;
 
-void preprocess(const char *src, size_t size);
+void tokenize(const char *src, size_t size);
 
 #endif // !FOX_PREPROC_H_

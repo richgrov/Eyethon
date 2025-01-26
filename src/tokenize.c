@@ -1,4 +1,4 @@
-#include "preproc.h"
+#include "tokenize.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -9,7 +9,7 @@
 #include "config.h"
 #include "operator.h"
 
-static void token_free(PreprocToken *tok) {
+static void token_free(Token *tok) {
    switch (tok->type) {
    case PROC_IDENTIFIER:
    case PROC_CHAR:
@@ -22,13 +22,13 @@ static void token_free(PreprocToken *tok) {
    }
 }
 
-static PreprocToken operator_token(Operator op) {
-   PreprocToken result = {.type = PROC_OPERATOR, .op_data = op};
+static Token operator_token(Operator op) {
+   Token result = {.type = PROC_OPERATOR, .op_data = op};
    return result;
 }
 
-static PreprocToken unexpected_char_token() {
-   PreprocToken result = {.type = PROC_ERROR, .err_data = ERR_UNEXPECTED};
+static Token unexpected_char_token() {
+   Token result = {.type = PROC_ERROR, .err_data = ERR_UNEXPECTED};
    return result;
 }
 
@@ -147,7 +147,7 @@ static void skip_whitespace(Preprocessor *proc) {
    }
 }
 
-static PreprocToken number(Preprocessor *proc, char first) {
+static Token number(Preprocessor *proc, char first) {
    char number[128] = {first};
    int number_index = 1;
 
@@ -170,7 +170,7 @@ static PreprocToken number(Preprocessor *proc, char first) {
    char *str = malloc(number_index + 1);
    memcpy(str, number, number_index + 1);
 
-   PreprocToken result = {
+   Token result = {
       .type = PROC_NUMBER,
       .str_data = str,
    };
@@ -231,8 +231,8 @@ static int escape_sequence(Preprocessor *proc, char *str_buf, int buf_size) {
    return hex_count;
 }
 
-static PreprocToken
-quoted_literal(Preprocessor *proc, char terminator, PreprocType result_type, bool allow_escape) {
+static Token
+quoted_literal(Preprocessor *proc, char terminator, TokenType result_type, bool allow_escape) {
    char contents[FOX_MAX_STR_LITERAL_LEN] = {0};
    int contents_len = 0;
 
@@ -258,14 +258,14 @@ quoted_literal(Preprocessor *proc, char terminator, PreprocType result_type, boo
    char *heap_contents = malloc(contents_len + 1);
    memcpy(heap_contents, contents, contents_len + 1);
 
-   PreprocToken result = {
+   Token result = {
       .type = result_type,
       .str_data = heap_contents,
    };
    return result;
 }
 
-static PreprocToken identifier(Preprocessor *proc, char first) {
+static Token identifier(Preprocessor *proc, char first) {
    char identifier[128] = {first};
    int identifier_index = 1;
 
@@ -287,17 +287,17 @@ static PreprocToken identifier(Preprocessor *proc, char first) {
    char *str = malloc(identifier_index + 1);
    memcpy(str, identifier, identifier_index + 1);
 
-   PreprocToken result = {
+   Token result = {
       .type = PROC_IDENTIFIER,
       .str_data = str,
    };
    return result;
 }
 
-static PreprocToken token(Preprocessor *proc) {
+static Token token(Preprocessor *proc) {
    skip_whitespace(proc);
 
-   PreprocToken result = {0};
+   Token result = {0};
 
    TokenizeHeaderState prev_header_state = proc->tokenize_header_state;
    proc->tokenize_header_state = HEADER_STATE_NONE;
@@ -500,7 +500,7 @@ static PreprocToken token(Preprocessor *proc) {
       }
 
       if (is_alpha(c) || c == '_') {
-         PreprocToken tok = identifier(proc, c);
+         Token tok = identifier(proc, c);
 
          if (prev_header_state == HEADER_STATE_HASH && strcmp(tok.str_data, "include") == 0) {
             proc->tokenize_header_state = HEADER_STATE_HASH_INCLUDE;
@@ -516,14 +516,14 @@ static PreprocToken token(Preprocessor *proc) {
    return result;
 }
 
-void preprocess(const char *src, size_t size) {
+void tokenize(const char *src, size_t size) {
    Preprocessor proc = {
       .src = src,
       .size = size,
       .read_index = 0,
    };
 
-   PreprocToken tok = token(&proc);
+   Token tok = token(&proc);
    while (true) {
       switch (tok.type) {
       case PROC_IDENTIFIER:

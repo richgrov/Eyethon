@@ -1,14 +1,14 @@
 set(SRC_FILES
   preprocessor/macro_dict.c
   preprocessor/macro_dict.h
-  preprocessor/preproc.c
-  preprocessor/preproc.h
   array.h
   assert.h
   chars.h
   config.h
   operator.c
   operator.h
+  tokenize.c
+  tokenize.h
   error.c
   error.h
 )

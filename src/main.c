@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 #include "error.h"
-#include "preprocessor/preproc.h"
+#include "tokenize.h"
 
 int main(int argc, char **argv) {
    if (argc < 2) {
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
       goto free_buffer;
    }
 
-   preprocess(buf, size);
+   tokenize(buf, size);
 
 free_buffer:
    free(buf);
