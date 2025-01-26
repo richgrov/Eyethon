@@ -16,7 +16,6 @@ typedef enum {
    PROC_NUMBER,
    PROC_CHAR,
    PROC_STR,
-   PROC_CHEVRON_STR, // #include strings quoted in < >
    PROC_OPERATOR,
    PROC_MISC, // non-whitespace, non-comment character that isn't any of the above
 } TokenType;

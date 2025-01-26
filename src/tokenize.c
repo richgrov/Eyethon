@@ -15,7 +15,6 @@ static void token_free(Token *tok) {
    case PROC_CHAR:
    case PROC_NUMBER:
    case PROC_STR:
-   case PROC_CHEVRON_STR:
       free(tok->str_data);
    default:
       break;
@@ -32,17 +31,10 @@ static Token unexpected_char_token() {
    return result;
 }
 
-typedef enum {
-   HEADER_STATE_NONE,
-   HEADER_STATE_HASH,
-   HEADER_STATE_HASH_INCLUDE,
-} TokenizeHeaderState;
-
 typedef struct {
    const char *src;
    size_t size;
    size_t read_index;
-   TokenizeHeaderState tokenize_header_state;
 } Preprocessor;
 
 static char try_decode_trigraph(Preprocessor *proc) {
@@ -295,9 +287,6 @@ static Token token(Preprocessor *proc) {
 
    Token result = {0};
 
-   TokenizeHeaderState prev_header_state = proc->tokenize_header_state;
-   proc->tokenize_header_state = HEADER_STATE_NONE;
-
    char c = next(proc);
    switch (c) {
    case '\0':
@@ -372,10 +361,6 @@ static Token token(Preprocessor *proc) {
       return operator_token(OP_UP_CARET);
 
    case '<':
-      if (prev_header_state == HEADER_STATE_HASH_INCLUDE) {
-         return quoted_literal(proc, '>', PROC_CHEVRON_STR, false);
-      }
-
       if (peek(proc) == '<') {
          next(proc);
          return operator_token(OP_DOUBLE_LCHEVRON);
@@ -457,8 +442,7 @@ static Token token(Preprocessor *proc) {
       return quoted_literal(proc, '\'', PROC_CHAR, true);
 
    case '"':
-      bool reading_include_directive = prev_header_state == HEADER_STATE_HASH_INCLUDE;
-      return quoted_literal(proc, '"', PROC_STR, !reading_include_directive);
+      return quoted_literal(proc, '"', PROC_STR, true);
 
    default:
       if (is_digit(c) || c == '.') {
@@ -466,13 +450,7 @@ static Token token(Preprocessor *proc) {
       }
 
       if (is_alpha(c) || c == '_') {
-         Token tok = identifier(proc, c);
-
-         if (prev_header_state == HEADER_STATE_HASH && strcmp(tok.str_data, "include") == 0) {
-            proc->tokenize_header_state = HEADER_STATE_HASH_INCLUDE;
-         }
-
-         return tok;
+         return identifier(proc, c);
       }
       break;
    }
@@ -496,9 +474,6 @@ void tokenize(const char *src, size_t size) {
       case PROC_CHAR:
       case PROC_NUMBER:
       case PROC_STR:
-      case PROC_CHEVRON_STR:
-         printf("%s\n", tok.str_data);
-         break;
 
       case PROC_OPERATOR:
          printf("%s\n", operator_to_str(tok.op_data));
