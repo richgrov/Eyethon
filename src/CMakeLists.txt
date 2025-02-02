@@ -11,21 +11,21 @@ set(SRC_FILES
   error.h
 )
 
-add_executable(fox
+add_executable(microgd
   ${SRC_FILES}
   main.c
 )
 
-set_property(TARGET fox PROPERTY C_STANDARD 11)
-target_include_directories(fox PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_compile_definitions(fox PRIVATE _CRT_SECURE_NO_WARNINGS)
+set_property(TARGET microgd PROPERTY C_STANDARD 11)
+target_include_directories(microgd PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_definitions(microgd PRIVATE _CRT_SECURE_NO_WARNINGS)
 
-add_executable(fox_test
+add_executable(microgd_test
   ${SRC_FILES}
   preprocessor/macro_dict_test.h
   main_test.c
 )
 
-set_property(TARGET fox_test PROPERTY C_STANDARD 11)
-target_include_directories(fox_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_compile_definitions(fox_test PRIVATE _CRT_SECURE_NO_WARNINGS)
+set_property(TARGET microgd_test PROPERTY C_STANDARD 11)
+target_include_directories(microgd_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_definitions(microgd_test PRIVATE _CRT_SECURE_NO_WARNINGS)
