@@ -11,6 +11,7 @@ pub struct Token {
 pub enum TokenType {
     Indent { level: usize },
     Comment { text: String },
+    At,
 }
 
 enum Indent {
@@ -88,6 +89,8 @@ impl Tokenizer {
                 }
 
                 '#' => break Ok(self.comment()),
+
+                '@' => break Ok(self.mk_token(TokenType::At)),
 
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
