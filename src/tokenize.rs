@@ -12,6 +12,7 @@ pub enum TokenType {
     Indent { level: usize },
     Comment { text: String },
     Identifier(String),
+    String(String),
 
     Plus,
     PlusEq,
@@ -89,6 +90,7 @@ pub struct TokenizerError {
 pub enum TokenizerErrorType {
     Unexpected { character: char },
     MixedIndent,
+    UnterminatedString { delim: char },
 }
 
 impl fmt::Display for TokenizerError {
@@ -96,6 +98,9 @@ impl fmt::Display for TokenizerError {
         let message = match self.ty {
             TokenizerErrorType::Unexpected { character } => format!("unexpected '{}'", character),
             TokenizerErrorType::MixedIndent => format!("mixed indentation"),
+            TokenizerErrorType::UnterminatedString { delim } => {
+                format!("string not terminated with {}", delim)
+            }
         };
 
         write!(f, "{}:{}: {}", self.line, self.column, message)
@@ -256,6 +261,8 @@ impl Tokenizer {
                 '~' => break Ok(self.mk_token(TokenType::Tilde)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
+                '"' | '\'' => break self.string(c),
+
                 other if other.is_ascii_alphabetic() || other == '_' => {
                     break Ok(self.identifier(other))
                 }
@@ -336,6 +343,23 @@ impl Tokenizer {
         }
 
         self.mk_token(TokenType::Identifier(ident))
+    }
+
+    fn string(&mut self, delim: char) -> Result<Token, TokenizerError> {
+        let mut text = String::with_capacity(8);
+        text.push(delim);
+
+        while let Some(c) = self.peek_char() {
+            if c == delim {
+                self.next_char();
+                return Ok(self.mk_token(TokenType::String(text)));
+            }
+
+            text.push(c);
+            self.next_char();
+        }
+
+        Err(self.mk_error(TokenizerErrorType::UnterminatedString { delim }))
     }
 
     fn peek_char(&self) -> Option<char> {
