@@ -256,7 +256,9 @@ impl Tokenizer {
                 '~' => break Ok(self.mk_token(TokenType::Tilde)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
-                other if other.is_ascii_alphanumeric() => break Ok(self.identifier(other)),
+                other if other.is_ascii_alphabetic() || other == '_' => {
+                    break Ok(self.identifier(other))
+                }
 
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
