@@ -10,6 +10,7 @@ pub struct Token {
 #[derive(Debug)]
 pub enum TokenType {
     Indent { level: usize },
+    Comment { text: String },
 }
 
 enum Indent {
@@ -86,6 +87,8 @@ impl Tokenizer {
                     self.beginning_new_line = true;
                 }
 
+                '#' => break Ok(self.comment()),
+
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
                 }
@@ -131,6 +134,21 @@ impl Tokenizer {
                 _ => break,
             }
         }
+    }
+
+    fn comment(&mut self) -> Token {
+        let mut text = String::with_capacity(16);
+
+        while let Some(c) = self.peek_char() {
+            if c == '\n' {
+                break;
+            }
+
+            text.push(c);
+            self.next_char();
+        }
+
+        self.mk_token(TokenType::Comment { text })
     }
 
     fn peek_char(&self) -> Option<char> {
