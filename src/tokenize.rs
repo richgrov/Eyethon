@@ -365,7 +365,7 @@ impl Tokenizer {
         ident.push(first);
 
         while let Some(c) = self.peek_char() {
-            if c.is_ascii_alphanumeric() {
+            if c.is_ascii_alphanumeric() || c == '_' {
                 ident.push(c);
                 self.next_char();
             } else {
