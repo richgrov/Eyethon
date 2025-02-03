@@ -1,3 +1,5 @@
+mod tokenize;
+
 fn main() {
     let mut args = std::env::args().skip(1);
 
@@ -17,5 +19,13 @@ fn main() {
         }
     };
 
-    println!("{}", contents);
+    let tokens = match tokenize::tokenize(&contents) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("error parsing {}: {}", file, e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("{:?}", tokens);
 }
