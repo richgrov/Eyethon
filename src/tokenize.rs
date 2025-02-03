@@ -11,6 +11,8 @@ pub struct Token {
 pub enum TokenType {
     Indent { level: usize },
     Comment { text: String },
+    Identifier(String),
+
     At,
 }
 
@@ -92,6 +94,8 @@ impl Tokenizer {
 
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
+                other if other.is_ascii_alphanumeric() => break Ok(self.identifier(other)),
+
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
                 }
@@ -152,6 +156,22 @@ impl Tokenizer {
         }
 
         self.mk_token(TokenType::Comment { text })
+    }
+
+    fn identifier(&mut self, first: char) -> Token {
+        let mut ident = String::with_capacity(8);
+        ident.push(first);
+
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_alphanumeric() {
+                ident.push(c);
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+
+        self.mk_token(TokenType::Identifier(ident))
     }
 
     fn peek_char(&self) -> Option<char> {
