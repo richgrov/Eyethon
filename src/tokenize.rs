@@ -13,7 +13,46 @@ pub enum TokenType {
     Comment { text: String },
     Identifier(String),
 
+    Plus,
+    PlusEq,
+    Minus,
+    MinusEq,
+    Star,
+    StarEq,
+    Slash,
+    SlashEq,
+    Percent,
+    PercentEq,
+    Bang,
+    BangEq,
+    Ampersand,
+    AmpersandEq,
+    Pipe,
+    PipeEq,
+    Carot,
+    CarotEq,
+    LChevron,
+    LChevronEq,
+    RChevron,
+    RChevronEq,
+    DoubleLChevron,
+    DoubleLChevronEq,
+    DoubleRChevron,
+    DoubleRChevronEq,
+    Equal,
+    EqualEqual,
     At,
+    LParen,
+    RParen,
+    LBrace,
+    RBrace,
+    LBracket,
+    RBracket,
+    Colon,
+    Comma,
+    Semicolon,
+    Dot,
+    Tilde,
 }
 
 enum Indent {
@@ -92,6 +131,129 @@ impl Tokenizer {
 
                 '#' => break Ok(self.comment()),
 
+                '+' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::PlusEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Plus));
+                }
+
+                '-' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::MinusEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Minus));
+                }
+
+                '*' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::StarEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Star));
+                }
+
+                '/' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::SlashEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Slash));
+                }
+
+                '%' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::PercentEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Percent));
+                }
+
+                '!' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::BangEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Bang));
+                }
+
+                '&' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::AmpersandEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Ampersand));
+                }
+
+                '|' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::PipeEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Pipe));
+                }
+
+                '^' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::CarotEq));
+                    }
+                    break Ok(self.mk_token(TokenType::Carot));
+                }
+
+                '<' => match self.peek_char() {
+                    Some('=') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::LChevronEq));
+                    }
+                    Some('<') => {
+                        self.next_char();
+                        if self.peek_char() == Some('=') {
+                            self.next_char();
+                            break Ok(self.mk_token(TokenType::DoubleLChevronEq));
+                        }
+                        break Ok(self.mk_token(TokenType::DoubleLChevron));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::LChevron)),
+                },
+
+                '>' => match self.peek_char() {
+                    Some('=') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::RChevronEq));
+                    }
+                    Some('>') => {
+                        self.next_char();
+                        if self.peek_char() == Some('=') {
+                            self.next_char();
+                            break Ok(self.mk_token(TokenType::DoubleRChevronEq));
+                        }
+                        break Ok(self.mk_token(TokenType::DoubleRChevron));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::RChevron)),
+                },
+
+                '=' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::EqualEqual));
+                    }
+                    break Ok(self.mk_token(TokenType::Equal));
+                }
+
+                '(' => break Ok(self.mk_token(TokenType::LParen)),
+                ')' => break Ok(self.mk_token(TokenType::RParen)),
+                '{' => break Ok(self.mk_token(TokenType::LBrace)),
+                '}' => break Ok(self.mk_token(TokenType::RBrace)),
+                '[' => break Ok(self.mk_token(TokenType::LBracket)),
+                ']' => break Ok(self.mk_token(TokenType::RBracket)),
+                ':' => break Ok(self.mk_token(TokenType::Colon)),
+                ',' => break Ok(self.mk_token(TokenType::Comma)),
+                ';' => break Ok(self.mk_token(TokenType::Semicolon)),
+                '.' => break Ok(self.mk_token(TokenType::Dot)),
+                '~' => break Ok(self.mk_token(TokenType::Tilde)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
                 other if other.is_ascii_alphanumeric() => break Ok(self.identifier(other)),
