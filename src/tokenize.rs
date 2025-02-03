@@ -13,6 +13,7 @@ pub enum TokenType {
     Comment { text: String },
     Identifier(String),
     String(String),
+    Integer(i64),
 
     Plus,
     PlusEq,
@@ -267,6 +268,8 @@ impl Tokenizer {
                     break Ok(self.identifier(other))
                 }
 
+                other if other.is_ascii_digit() => break Ok(self.number(other)),
+
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
                 }
@@ -360,6 +363,23 @@ impl Tokenizer {
         }
 
         Err(self.mk_error(TokenizerErrorType::UnterminatedString { delim }))
+    }
+
+    fn number(&mut self, first: char) -> Token {
+        let mut text = String::with_capacity(8);
+        text.push(first);
+
+        while let Some(c) = self.peek_char() {
+            if c.is_digit(10) {
+                text.push(c);
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+
+        let int = text.parse::<i64>().unwrap();
+        self.mk_token(TokenType::Integer(int))
     }
 
     fn peek_char(&self) -> Option<char> {
