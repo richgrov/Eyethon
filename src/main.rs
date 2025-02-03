@@ -1,3 +1,4 @@
+mod parse;
 mod tokenize;
 
 fn main() {
@@ -22,10 +23,18 @@ fn main() {
     let tokens = match tokenize::tokenize(&contents) {
         Ok(t) => t,
         Err(e) => {
-            eprintln!("error parsing {}: {}", file, e);
+            eprintln!("error: {}: {}", file, e);
             std::process::exit(1);
         }
     };
 
-    println!("{:?}", tokens);
+    let statements = match parse::parse(&tokens) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {}: {}", file, e);
+            std::process::exit(1);
+        }
+    };
+
+    println!("{:?}", statements);
 }
