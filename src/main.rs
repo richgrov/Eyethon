@@ -28,7 +28,7 @@ fn main() {
         }
     };
 
-    let statements = match parse::parse(&tokens) {
+    let statements = match parse::parse(tokens) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("error: {}: {}", file, e);

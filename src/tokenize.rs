@@ -1,13 +1,13 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    ty: TokenType,
-    line: usize,
-    column: usize,
+    pub ty: TokenType,
+    pub line: usize,
+    pub column: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum TokenType {
     Indent { level: usize },
     Comment { text: String },
