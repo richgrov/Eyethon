@@ -125,15 +125,11 @@ impl Tokenizer {
             let c = self.next_char()?;
             match c {
                 ' ' | '\t' if self.beginning_new_line => {
-                    self.beginning_new_line = false;
                     break self.indent(c);
                 }
 
                 ' ' | '\t' => self.skip_line_whitespace(),
-
-                '\n' => {
-                    self.beginning_new_line = true;
-                }
+                '\n' => {}
 
                 '#' => break Ok(self.comment()),
 
@@ -392,9 +388,13 @@ impl Tokenizer {
         }
 
         let c = self.source[self.read_index];
+
         if c == '\n' {
             self.line += 1;
             self.column = 0;
+            self.beginning_new_line = true;
+        } else if c != ' ' && c != '\t' {
+            self.beginning_new_line = false;
         }
 
         self.column += 1;
