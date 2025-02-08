@@ -36,6 +36,7 @@ pub enum ExpressionType {
     String(String),
     Integer(i64),
     Array(Vec<Expression>),
+    Dictionary { kv_pairs: Vec<(String, Expression)> },
     FunctionCall(FunctionCallExpression),
 }
 
@@ -196,6 +197,9 @@ impl Parser {
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
+                TokenType::LBrace => ExpressionType::Dictionary {
+                    kv_pairs: self.parse_dict_literal()?,
+                },
                 _ => return Err(ParseError::UnexpectedToken(first_tok.clone())),
             },
             line: first_tok.line,
@@ -229,6 +233,56 @@ impl Parser {
         }
 
         Ok(expressions)
+    }
+
+    fn parse_dict_literal(&mut self) -> Result<Vec<(String, Expression)>, ParseError> {
+        if self.next_if(TokenType::RBrace) {
+            return Ok(Vec::new());
+        }
+
+        let mut kv = Vec::new();
+
+        loop {
+            let key_token = self.expect_token()?.clone();
+
+            let key = match self.expect_token()? {
+                Token {
+                    ty: TokenType::Colon,
+                    ..
+                } => match key_token.ty {
+                    TokenType::String(key) => key,
+                    TokenType::Integer(int) => int.to_string(),
+                    _ => return Err(ParseError::UnexpectedToken(key_token.clone())),
+                },
+                Token {
+                    ty: TokenType::Equal,
+                    ..
+                } => match key_token.ty {
+                    TokenType::Identifier(key) => key,
+                    _ => return Err(ParseError::UnexpectedToken(key_token.clone())),
+                },
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            };
+
+            let value = self.expression()?;
+            kv.push((key, value));
+
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::RBrace,
+                    ..
+                } => {
+                    break;
+                }
+                Token {
+                    ty: TokenType::Comma,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            }
+        }
+
+        Ok(kv)
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
