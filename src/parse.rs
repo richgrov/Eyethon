@@ -18,14 +18,17 @@ pub enum StatementType {
     ClassName(String),
     Extends(String),
     Var {
+        konst: bool,
         identifier: String,
         value: Expression,
     },
     DefaultVar {
+        konst: bool,
         identifier: String,
         ty: String,
     },
     StrictVar {
+        konst: bool,
         identifier: String,
         value: Expression,
     },
@@ -115,7 +118,7 @@ impl Parser {
             TokenType::At => {}
             TokenType::ClassName => return self.class_name(first_tok),
             TokenType::Extends => return self.extends(first_tok),
-            TokenType::Var => return self.var(first_tok),
+            TokenType::Var | TokenType::Const => return self.var_or_const(first_tok),
             _ => return Err(ParseError::UnexpectedToken(first_tok)),
         }
 
@@ -167,7 +170,8 @@ impl Parser {
         })
     }
 
-    fn var(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+    fn var_or_const(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let konst = first_tok.ty == TokenType::Const;
         let identifier = self.expect_identifier()?;
 
         if self.next_if(TokenType::Colon) {
@@ -175,7 +179,11 @@ impl Parser {
             self.expect_eol()?;
 
             return Ok(Statement {
-                ty: StatementType::DefaultVar { identifier, ty },
+                ty: StatementType::DefaultVar {
+                    konst,
+                    identifier,
+                    ty,
+                },
                 line: first_tok.line,
                 column: first_tok.column,
             });
@@ -186,7 +194,11 @@ impl Parser {
             self.expect_eol()?;
 
             return Ok(Statement {
-                ty: StatementType::StrictVar { identifier, value },
+                ty: StatementType::StrictVar {
+                    konst,
+                    identifier,
+                    value,
+                },
                 line: first_tok.line,
                 column: first_tok.column,
             });
@@ -205,6 +217,7 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Var {
+                konst,
                 identifier,
                 value: expr,
             },
