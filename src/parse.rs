@@ -35,6 +35,7 @@ pub enum ExpressionType {
     Identifier(String),
     String(String),
     Integer(i64),
+    Array(Vec<Expression>),
     FunctionCall(FunctionCallExpression),
 }
 
@@ -205,16 +206,56 @@ impl Parser {
                 line: first_tok.line,
                 column: first_tok.column,
             }),
+            TokenType::LBracket => Ok(Expression {
+                ty: ExpressionType::Array(self.parse_array_literal()?),
+                line: first_tok.line,
+                column: first_tok.column,
+            }),
             _ => Err(ParseError::UnexpectedToken(first_tok.clone())),
         }
     }
 
-    fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if let Some(tok) = self.peek_tok() {
-            if tok.ty == TokenType::RParen {
-                self.next_token();
-                return Ok(Vec::new());
+    fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
+        if let Some(Token {
+            ty: TokenType::RBracket,
+            ..
+        }) = self.peek_tok()
+        {
+            self.next_token();
+            return Ok(Vec::new());
+        }
+
+        let mut expressions = Vec::new();
+
+        loop {
+            expressions.push(self.expression()?);
+
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::RBracket,
+                    ..
+                } => {
+                    break;
+                }
+                Token {
+                    ty: TokenType::Comma,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
             }
+        }
+
+        Ok(expressions)
+    }
+
+    fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
+        if let Some(Token {
+            ty: TokenType::RParen,
+            ..
+        }) = self.peek_tok()
+        {
+            self.next_token();
+            return Ok(Vec::new());
         }
 
         let mut args = Vec::new();
