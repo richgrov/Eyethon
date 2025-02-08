@@ -34,6 +34,7 @@ pub struct Expression {
 pub enum ExpressionType {
     Identifier(String),
     String(String),
+    Integer(i64),
     FunctionCall(FunctionCallExpression),
 }
 
@@ -227,6 +228,11 @@ impl Parser {
             }),
             TokenType::String(ref string) => Ok(Expression {
                 ty: ExpressionType::String(string.clone()),
+                line: first_tok.line,
+                column: first_tok.column,
+            }),
+            TokenType::Integer(integer) => Ok(Expression {
+                ty: ExpressionType::Integer(integer),
                 line: first_tok.line,
                 column: first_tok.column,
             }),
