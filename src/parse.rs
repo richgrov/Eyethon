@@ -17,6 +17,10 @@ pub enum StatementType {
     },
     ClassName(String),
     Extends(String),
+    Var {
+        identifier: String,
+        value: Box<Expression>,
+    },
 }
 
 #[derive(Debug)]
@@ -98,6 +102,7 @@ impl Parser {
             TokenType::At => {}
             TokenType::ClassName => return self.class_name(first_tok),
             TokenType::Extends => return self.extends(first_tok),
+            TokenType::Var => return self.var(first_tok),
             _ => return Err(ParseError::UnexpectedToken(first_tok)),
         }
 
@@ -143,6 +148,38 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Extends(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn var(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let identifier_token = match self.next_token() {
+            Some(token) => token.clone(),
+            None => return Err(ParseError::UnexpectedEof),
+        };
+
+        let identifier = match identifier_token.ty {
+            TokenType::Identifier(name) => name,
+            _ => return Err(ParseError::UnexpectedToken(identifier_token)),
+        };
+
+        match self.next_token() {
+            Some(Token {
+                ty: TokenType::Equal,
+                ..
+            }) => {}
+            Some(other) => return Err(ParseError::UnexpectedToken(other.clone())),
+            None => return Err(ParseError::UnexpectedEof),
+        };
+
+        let expr = self.expression()?;
+
+        Ok(Statement {
+            ty: StatementType::Var {
+                identifier,
+                value: Box::new(expr),
+            },
             line: first_tok.line,
             column: first_tok.column,
         })
