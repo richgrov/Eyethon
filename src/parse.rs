@@ -204,12 +204,7 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if let Some(Token {
-            ty: TokenType::RBracket,
-            ..
-        }) = self.peek_tok()
-        {
-            self.next_token();
+        if self.next_if(TokenType::RBracket) {
             return Ok(Vec::new());
         }
 
@@ -237,12 +232,7 @@ impl Parser {
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if let Some(Token {
-            ty: TokenType::RParen,
-            ..
-        }) = self.peek_tok()
-        {
-            self.next_token();
+        if self.next_if(TokenType::RParen) {
             return Ok(Vec::new());
         }
 
@@ -272,6 +262,16 @@ impl Parser {
         let tok = self.tokens.get(self.read_index)?;
         self.read_index += 1;
         Some(tok)
+    }
+
+    fn next_if(&mut self, ty: TokenType) -> bool {
+        match self.peek_tok() {
+            Some(tok) if tok.ty == ty => {
+                self.next_token();
+                true
+            }
+            _ => false,
+        }
     }
 
     fn expect_token(&mut self) -> Result<&Token, ParseError> {
