@@ -191,7 +191,7 @@ impl Parser {
             None => return Err(ParseError::UnexpectedEof),
         };
 
-        let mut expr = self.primitive(&token)?;
+        let mut expr = self.literal(&token)?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -218,7 +218,7 @@ impl Parser {
         Ok(expr)
     }
 
-    fn primitive(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
+    fn literal(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
         match first_tok.ty {
             TokenType::Identifier(ref name) => Ok(Expression {
                 ty: ExpressionType::Identifier(name.clone()),
