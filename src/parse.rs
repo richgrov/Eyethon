@@ -16,6 +16,7 @@ pub enum StatementType {
         target: Box<Statement>,
     },
     ClassName(String),
+    Extends(String),
 }
 
 #[derive(Debug)]
@@ -93,9 +94,12 @@ impl Parser {
             None => return Err(ParseError::UnexpectedEof),
         };
 
-        let TokenType::At = first_tok.ty else {
-            return self.class_name(first_tok);
-        };
+        match first_tok.ty {
+            TokenType::At => {}
+            TokenType::ClassName => return self.class_name(first_tok),
+            TokenType::Extends => return self.extends(first_tok),
+            _ => return Err(ParseError::UnexpectedToken(first_tok)),
+        }
 
         let annotation = self.expression()?;
         let target = self.annotation()?;
@@ -111,10 +115,6 @@ impl Parser {
     }
 
     fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let TokenType::ClassName = first_tok.ty else {
-            return Err(ParseError::UnexpectedToken(first_tok));
-        };
-
         let Some(name_tok) = self.next_token() else {
             return Err(ParseError::UnexpectedEof);
         };
@@ -126,6 +126,23 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::ClassName(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let Some(name_tok) = self.next_token() else {
+            return Err(ParseError::UnexpectedEof);
+        };
+        let name_tok = name_tok.clone();
+
+        let TokenType::Identifier(name) = name_tok.ty else {
+            return Err(ParseError::UnexpectedToken(name_tok));
+        };
+
+        Ok(Statement {
+            ty: StatementType::Extends(name),
             line: first_tok.line,
             column: first_tok.column,
         })
