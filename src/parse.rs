@@ -12,14 +12,14 @@ pub struct Statement {
 #[derive(Debug)]
 pub enum StatementType {
     Annotation {
-        annotation: Box<Expression>,
+        annotation: Expression,
         target: Box<Statement>,
     },
     ClassName(String),
     Extends(String),
     Var {
         identifier: String,
-        value: Box<Expression>,
+        value: Expression,
     },
     DefaultVar {
         identifier: String,
@@ -120,7 +120,7 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Annotation {
-                annotation: Box::new(annotation),
+                annotation,
                 target: Box::new(target),
             },
             line: first_tok.line,
@@ -191,7 +191,7 @@ impl Parser {
         Ok(Statement {
             ty: StatementType::Var {
                 identifier,
-                value: Box::new(expr),
+                value: expr,
             },
             line: first_tok.line,
             column: first_tok.column,
