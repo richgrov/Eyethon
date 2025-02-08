@@ -25,6 +25,10 @@ pub enum StatementType {
         identifier: String,
         ty: String,
     },
+    StrictVar {
+        identifier: String,
+        value: Expression,
+    },
 }
 
 #[derive(Debug)]
@@ -172,6 +176,17 @@ impl Parser {
 
             return Ok(Statement {
                 ty: StatementType::DefaultVar { identifier, ty },
+                line: first_tok.line,
+                column: first_tok.column,
+            });
+        }
+
+        if self.next_if(TokenType::ColonEqual) {
+            let value = self.expression()?;
+            self.expect_eol()?;
+
+            return Ok(Statement {
+                ty: StatementType::StrictVar { identifier, value },
                 line: first_tok.line,
                 column: first_tok.column,
             });
