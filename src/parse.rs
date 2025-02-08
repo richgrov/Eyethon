@@ -117,10 +117,7 @@ impl Parser {
     }
 
     fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name_tok = self.expect_token()?.clone();
-        let TokenType::Identifier(name) = name_tok.ty else {
-            return Err(ParseError::UnexpectedToken(name_tok));
-        };
+        let name = self.expect_identifier()?;
 
         Ok(Statement {
             ty: StatementType::ClassName(name),
@@ -130,10 +127,7 @@ impl Parser {
     }
 
     fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name_tok = self.expect_token()?.clone();
-        let TokenType::Identifier(name) = name_tok.ty else {
-            return Err(ParseError::UnexpectedToken(name_tok));
-        };
+        let name = self.expect_identifier()?;
 
         Ok(Statement {
             ty: StatementType::Extends(name),
@@ -143,12 +137,7 @@ impl Parser {
     }
 
     fn var(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let identifier_token = self.expect_token()?.clone();
-
-        let identifier = match identifier_token.ty {
-            TokenType::Identifier(name) => name,
-            _ => return Err(ParseError::UnexpectedToken(identifier_token)),
-        };
+        let identifier = self.expect_identifier()?;
 
         match self.expect_token()? {
             Token {
@@ -258,6 +247,16 @@ impl Parser {
 
     fn expect_token(&mut self) -> Result<&Token, ParseError> {
         self.next_token().ok_or(ParseError::UnexpectedEof)
+    }
+
+    fn expect_identifier(&mut self) -> Result<String, ParseError> {
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::Identifier(name),
+                ..
+            } => Ok(name.to_owned()),
+            other => Err(ParseError::UnexpectedToken(other.clone())),
+        }
     }
 }
 
