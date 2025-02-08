@@ -15,6 +15,7 @@ pub enum StatementType {
         annotation: Box<Expression>,
         target: Box<Statement>,
     },
+    ClassName(String),
 }
 
 #[derive(Debug)]
@@ -93,7 +94,7 @@ impl Parser {
         };
 
         let TokenType::At = first_tok.ty else {
-            return Err(ParseError::UnexpectedToken(first_tok));
+            return self.class_name(first_tok);
         };
 
         let annotation = self.expression()?;
@@ -104,6 +105,27 @@ impl Parser {
                 annotation: Box::new(annotation),
                 target: Box::new(target),
             },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let TokenType::ClassName = first_tok.ty else {
+            return Err(ParseError::UnexpectedToken(first_tok));
+        };
+
+        let Some(name_tok) = self.next_token() else {
+            return Err(ParseError::UnexpectedEof);
+        };
+        let name_tok = name_tok.clone();
+
+        let TokenType::Identifier(name) = name_tok.ty else {
+            return Err(ParseError::UnexpectedToken(name_tok));
+        };
+
+        Ok(Statement {
+            ty: StatementType::ClassName(name),
             line: first_tok.line,
             column: first_tok.column,
         })
