@@ -190,29 +190,17 @@ impl Parser {
     }
 
     fn literal(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
-        match first_tok.ty {
-            TokenType::Identifier(ref name) => Ok(Expression {
-                ty: ExpressionType::Identifier(name.clone()),
-                line: first_tok.line,
-                column: first_tok.column,
-            }),
-            TokenType::String(ref string) => Ok(Expression {
-                ty: ExpressionType::String(string.clone()),
-                line: first_tok.line,
-                column: first_tok.column,
-            }),
-            TokenType::Integer(integer) => Ok(Expression {
-                ty: ExpressionType::Integer(integer),
-                line: first_tok.line,
-                column: first_tok.column,
-            }),
-            TokenType::LBracket => Ok(Expression {
-                ty: ExpressionType::Array(self.parse_array_literal()?),
-                line: first_tok.line,
-                column: first_tok.column,
-            }),
-            _ => Err(ParseError::UnexpectedToken(first_tok.clone())),
-        }
+        Ok(Expression {
+            ty: match first_tok.ty {
+                TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
+                TokenType::String(ref string) => ExpressionType::String(string.clone()),
+                TokenType::Integer(integer) => ExpressionType::Integer(integer),
+                TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
+                _ => return Err(ParseError::UnexpectedToken(first_tok.clone())),
+            },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
     }
 
     fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
