@@ -87,6 +87,7 @@ pub enum TokenType {
     Semicolon,
     Dot,
     Tilde,
+    Eol,
 }
 
 enum Indent {
@@ -161,7 +162,7 @@ impl Tokenizer {
                 }
 
                 ' ' | '\t' => self.skip_line_whitespace(),
-                '\n' => {}
+                '\n' => break Ok(self.mk_token(TokenType::Eol)),
 
                 '#' => break Ok(self.comment()),
 

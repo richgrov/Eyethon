@@ -49,6 +49,7 @@ pub struct FunctionCallExpression {
 pub enum ParseError {
     UnexpectedToken(Token),
     UnexpectedEof,
+    ExpectedEol { line: usize },
 }
 
 impl fmt::Display for ParseError {
@@ -59,6 +60,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::UnexpectedEof => {
                 write!(f, "{}:{}: unexpected end of file", 0, 0)
+            }
+            ParseError::ExpectedEol { line } => {
+                write!(f, "{}:{}: expected end of line", line, 0)
             }
         }
     }
@@ -96,6 +100,8 @@ impl Parser {
     }
 
     fn annotation(&mut self) -> Result<Statement, ParseError> {
+        while self.next_if(TokenType::Eol) {}
+
         let first_tok = self.expect_token()?.clone();
         match first_tok.ty {
             TokenType::At => {}
@@ -121,6 +127,20 @@ impl Parser {
     fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
 
+        match self.peek_tok() {
+            Some(tok) => match tok {
+                Token {
+                    ty: TokenType::Eol, ..
+                }
+                | Token {
+                    ty: TokenType::Extends,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            },
+            None => {}
+        }
+
         Ok(Statement {
             ty: StatementType::ClassName(name),
             line: first_tok.line,
@@ -130,6 +150,7 @@ impl Parser {
 
     fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
+        self.expect_eol()?;
 
         Ok(Statement {
             ty: StatementType::Extends(name),
@@ -150,6 +171,7 @@ impl Parser {
         }
 
         let expr = self.expression()?;
+        self.expect_eol()?;
 
         Ok(Statement {
             ty: StatementType::Var {
@@ -339,6 +361,16 @@ impl Parser {
                 ..
             } => Ok(name.to_owned()),
             other => Err(ParseError::UnexpectedToken(other.clone())),
+        }
+    }
+
+    fn expect_eol(&mut self) -> Result<(), ParseError> {
+        match self.next_token() {
+            Some(Token {
+                ty: TokenType::Eol, ..
+            })
+            | None => Ok(()),
+            Some(other) => Err(ParseError::ExpectedEol { line: other.line }),
         }
     }
 }
