@@ -75,6 +75,8 @@ pub enum TokenType {
     DoubleRChevronEq,
     Equal,
     EqualEqual,
+    ColonEqual,
+    Colon,
     At,
     LParen,
     RParen,
@@ -82,7 +84,6 @@ pub enum TokenType {
     RBrace,
     LBracket,
     RBracket,
-    Colon,
     Comma,
     Semicolon,
     Dot,
@@ -278,13 +279,20 @@ impl Tokenizer {
                     break Ok(self.mk_token(TokenType::Equal));
                 }
 
+                ':' => {
+                    if self.peek_char() == Some('=') {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::ColonEqual));
+                    }
+                    break Ok(self.mk_token(TokenType::Colon));
+                }
+
                 '(' => break Ok(self.mk_token(TokenType::LParen)),
                 ')' => break Ok(self.mk_token(TokenType::RParen)),
                 '{' => break Ok(self.mk_token(TokenType::LBrace)),
                 '}' => break Ok(self.mk_token(TokenType::RBrace)),
                 '[' => break Ok(self.mk_token(TokenType::LBracket)),
                 ']' => break Ok(self.mk_token(TokenType::RBracket)),
-                ':' => break Ok(self.mk_token(TokenType::Colon)),
                 ',' => break Ok(self.mk_token(TokenType::Comma)),
                 ';' => break Ok(self.mk_token(TokenType::Semicolon)),
                 '.' => break Ok(self.mk_token(TokenType::Dot)),
