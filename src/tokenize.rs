@@ -7,7 +7,7 @@ pub struct Token {
     pub column: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     Indent { level: usize },
     Comment { text: String },

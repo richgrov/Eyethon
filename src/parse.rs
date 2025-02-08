@@ -27,11 +27,15 @@ pub struct Expression {
 #[derive(Debug)]
 pub enum ExpressionType {
     Identifier(String),
+    String(String),
     FunctionCall(FunctionCallExpression),
 }
 
 #[derive(Debug)]
-pub struct FunctionCallExpression {}
+pub struct FunctionCallExpression {
+    callee: Box<Expression>,
+    args: Vec<Expression>,
+}
 
 pub enum ParseError {
     UnexpectedToken(Token),
@@ -111,14 +115,76 @@ impl Parser {
             None => return Err(ParseError::UnexpectedEof),
         };
 
-        match token.ty {
-            TokenType::Identifier(name) => Ok(Expression {
-                ty: ExpressionType::Identifier(name),
-                line: token.line,
-                column: token.column,
-            }),
-            _ => Err(ParseError::UnexpectedToken(token)),
+        let mut expr = self.primitive(&token)?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+            let token = token.clone();
+
+            match token.ty {
+                TokenType::LParen => {
+                    self.next_token();
+                    let args = self.parse_function_args()?;
+
+                    expr = Expression {
+                        ty: ExpressionType::FunctionCall(FunctionCallExpression {
+                            callee: Box::new(expr),
+                            args,
+                        }),
+                        line: token.line,
+                        column: token.column,
+                    }
+                }
+                _ => break,
+            }
         }
+
+        Ok(expr)
+    }
+
+    fn primitive(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
+        match first_tok.ty {
+            TokenType::Identifier(ref name) => Ok(Expression {
+                ty: ExpressionType::Identifier(name.clone()),
+                line: first_tok.line,
+                column: first_tok.column,
+            }),
+            TokenType::String(ref string) => Ok(Expression {
+                ty: ExpressionType::String(string.clone()),
+                line: first_tok.line,
+                column: first_tok.column,
+            }),
+            _ => Err(ParseError::UnexpectedToken(first_tok.clone())),
+        }
+    }
+
+    fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
+        if let Some(tok) = self.peek_tok() {
+            if tok.ty == TokenType::RParen {
+                self.next_token();
+                return Ok(Vec::new());
+            }
+        }
+
+        let mut args = Vec::new();
+
+        loop {
+            args.push(self.expression()?);
+
+            let Some(tok) = self.next_token() else {
+                return Err(ParseError::UnexpectedEof);
+            };
+
+            match tok.ty {
+                TokenType::RParen => {
+                    break;
+                }
+                TokenType::Comma => {}
+                _ => return Err(ParseError::UnexpectedToken(tok.clone())),
+            }
+        }
+
+        Ok(args)
     }
 
     fn peek_tok(&self) -> Option<&Token> {
