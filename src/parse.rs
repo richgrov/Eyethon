@@ -21,6 +21,10 @@ pub enum StatementType {
         identifier: String,
         value: Box<Expression>,
     },
+    DefaultVar {
+        identifier: String,
+        ty: String,
+    },
 }
 
 #[derive(Debug)]
@@ -161,6 +165,17 @@ impl Parser {
 
     fn var(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let identifier = self.expect_identifier()?;
+
+        if self.next_if(TokenType::Colon) {
+            let ty = self.expect_identifier()?;
+            self.expect_eol()?;
+
+            return Ok(Statement {
+                ty: StatementType::DefaultVar { identifier, ty },
+                line: first_tok.line,
+                column: first_tok.column,
+            });
+        }
 
         match self.expect_token()? {
             Token {
