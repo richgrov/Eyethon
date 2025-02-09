@@ -32,6 +32,10 @@ pub enum StatementType {
         identifier: String,
         value: Expression,
     },
+    Enum {
+        name: Option<String>,
+        values: Vec<(String, Option<i64>)>,
+    },
 }
 
 #[derive(Debug)]
@@ -119,6 +123,7 @@ impl Parser {
             TokenType::ClassName => return self.class_name(first_tok),
             TokenType::Extends => return self.extends(first_tok),
             TokenType::Var | TokenType::Const => return self.var_or_const(first_tok),
+            TokenType::Enum => return self.parse_enum(first_tok),
             _ => return Err(ParseError::UnexpectedToken(first_tok)),
         }
 
@@ -221,6 +226,66 @@ impl Parser {
                 identifier,
                 value: expr,
             },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_enum(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let name_tok = self.peek_tok().cloned();
+        let name = match name_tok {
+            Some(Token {
+                ty: TokenType::Identifier(name),
+                ..
+            }) => {
+                self.next_token();
+                Some(name.clone())
+            }
+            _ => None,
+        };
+
+        let Token {
+            ty: TokenType::LBrace,
+            ..
+        } = self.expect_token()?
+        else {
+            return Err(ParseError::UnexpectedToken(first_tok.clone()));
+        };
+
+        let mut values = Vec::new();
+
+        loop {
+            let name = self.expect_identifier()?;
+
+            let ordinal = if self.next_if(TokenType::Equal) {
+                match self.expect_token()? {
+                    Token {
+                        ty: TokenType::Integer(value),
+                        ..
+                    } => Some(*value),
+                    other => return Err(ParseError::UnexpectedToken(other.clone())),
+                }
+            } else {
+                None
+            };
+
+            values.push((name, ordinal));
+
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::RBrace,
+                    ..
+                } => break,
+                Token {
+                    ty: TokenType::Comma,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            }
+        }
+
+        Ok(Statement {
+            ty: StatementType::Enum { name, values },
             line: first_tok.line,
             column: first_tok.column,
         })
