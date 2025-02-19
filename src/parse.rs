@@ -258,11 +258,12 @@ impl Parser {
             let name = self.expect_identifier()?;
 
             let ordinal = if self.next_if(TokenType::Equal) {
+                let is_negative = self.next_if(TokenType::Minus);
                 match self.expect_token()? {
                     Token {
                         ty: TokenType::Integer(value),
                         ..
-                    } => Some(*value),
+                    } => Some(if is_negative { -value } else { *value }),
                     other => return Err(ParseError::UnexpectedToken(other.clone())),
                 }
             } else {
