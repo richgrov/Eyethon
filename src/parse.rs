@@ -36,6 +36,10 @@ pub enum StatementType {
         name: Option<String>,
         values: Vec<(String, Option<i64>)>,
     },
+    Function {
+        name: String,
+        args: Vec<String>,
+    },
 }
 
 #[derive(Debug)]
@@ -124,6 +128,7 @@ impl Parser {
             TokenType::Extends => return self.extends(first_tok),
             TokenType::Var | TokenType::Const => return self.var_or_const(first_tok),
             TokenType::Enum => return self.parse_enum(first_tok),
+            TokenType::Func => return self.parse_function(first_tok),
             _ => return Err(ParseError::UnexpectedToken(first_tok)),
         }
 
@@ -287,6 +292,61 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Enum { name, values },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_function(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let name = self.expect_identifier()?;
+
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::LParen,
+                ..
+            } => {}
+            other => return Err(ParseError::UnexpectedToken(other.clone())),
+        };
+
+        if self.next_if(TokenType::RParen) {
+            return Ok(Statement {
+                ty: StatementType::Function {
+                    name,
+                    args: Vec::new(),
+                },
+                line: first_tok.line,
+                column: first_tok.column,
+            });
+        }
+
+        let mut args = Vec::new();
+
+        loop {
+            args.push(self.expect_identifier()?);
+
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::RParen,
+                    ..
+                } => break,
+                Token {
+                    ty: TokenType::Comma,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            }
+        }
+
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::Colon,
+                ..
+            } => {}
+            other => return Err(ParseError::UnexpectedToken(other.clone())),
+        }
+
+        Ok(Statement {
+            ty: StatementType::Function { name, args },
             line: first_tok.line,
             column: first_tok.column,
         })
