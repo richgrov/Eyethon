@@ -62,8 +62,8 @@ pub enum ExpressionType {
 
 #[derive(Debug)]
 pub struct FunctionCallExpression {
-    callee: Box<Expression>,
-    args: Vec<Expression>,
+    pub callee: Box<Expression>,
+    pub args: Vec<Expression>,
 }
 
 pub enum ParseError {

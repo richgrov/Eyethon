@@ -1,5 +1,8 @@
+use vm::{Value, VM};
+
 mod parse;
 mod tokenize;
+mod vm;
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -36,5 +39,23 @@ fn main() {
         }
     };
 
-    println!("{:?}", statements);
+    let mut vm = VM::new();
+    vm.register_native("print", |args| {
+        for list in args {
+            print!("(");
+            for f in &list.0 {
+                print!("{}", f);
+            }
+            println!(")");
+        }
+
+        Value(vec![])
+    });
+
+    match vm.run(&statements) {
+        Ok(()) => {}
+        Err(e) => {
+            eprintln!("error: {:?}", e);
+        }
+    }
 }
