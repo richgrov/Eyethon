@@ -102,7 +102,6 @@ impl VM {
     }
 }
 
-// Example usage:
 #[cfg(test)]
 mod tests {
     use super::*;
