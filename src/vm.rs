@@ -1,14 +1,105 @@
 use crate::parse::{Expression, ExpressionType, FunctionCallExpression, Statement, StatementType};
 use std::collections::HashMap;
+use std::ffi::{c_char, c_void, CStr};
 
 #[derive(Clone, Debug)]
 pub struct Value(pub Vec<f64>);
 
 type NativeFn = Box<dyn Fn(&[Value]) -> Value>;
+type CFunctionCallback = extern "C" fn(*const f64, usize, *mut f64, *mut usize) -> i32;
 
 pub struct VM {
     variables: HashMap<String, Value>,
     native_fns: HashMap<String, NativeFn>,
+}
+
+#[no_mangle]
+pub extern "C" fn gd_vm_create() -> *mut c_void {
+    let vm = Box::new(VM::new());
+    Box::into_raw(vm) as *mut c_void
+}
+
+#[no_mangle]
+pub extern "C" fn gd_vm_destroy(vm: *mut c_void) {
+    if !vm.is_null() {
+        unsafe {
+            drop(Box::from_raw(vm as *mut VM));
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn gd_register_function(
+    vm: *mut c_void,
+    name: *const c_char,
+    callback: CFunctionCallback,
+) -> i32 {
+    if vm.is_null() || name.is_null() {
+        return -1;
+    }
+
+    let vm = unsafe { &mut *(vm as *mut VM) };
+    let name = unsafe { CStr::from_ptr(name) }.to_string_lossy();
+
+    vm.register_native(&name, move |args: &[Value]| {
+        let mut input_data = Vec::new();
+        for arg in args {
+            input_data.extend(&arg.0);
+        }
+
+        let mut output = Vec::with_capacity(16);
+        let mut output_len = 0;
+
+        let result = callback(
+            input_data.as_ptr(),
+            input_data.len(),
+            output.as_mut_ptr(),
+            &mut output_len,
+        );
+
+        if result == 0 {
+            unsafe { output.set_len(output_len) };
+            Value(output)
+        } else {
+            Value(vec![])
+        }
+    });
+
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn vm_run(vm: *mut c_void, code: *const c_char) -> i32 {
+    if vm.is_null() || code.is_null() {
+        return -1;
+    }
+
+    let vm = unsafe { &mut *(vm as *mut VM) };
+    let code = unsafe { CStr::from_ptr(code) }.to_string_lossy();
+
+    let tokens = match crate::tokenize::tokenize(&code) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("{:?}", e);
+            return -1;
+        }
+    };
+
+    let statements = match crate::parse::parse(tokens) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{}", e);
+            return -1;
+        }
+    };
+
+    match vm.run(&statements) {
+        Ok(()) => 0,
+        Err(e) => {
+            eprintln!("{:?}", e);
+            -1
+        }
+    }
 }
 
 #[derive(Debug)]
