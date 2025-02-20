@@ -55,6 +55,7 @@ pub enum ExpressionType {
     Identifier(String),
     String(String),
     Integer(i64),
+    Float(f64),
     Array(Vec<Expression>),
     Dictionary { kv_pairs: Vec<(String, Expression)> },
     FunctionCall(FunctionCallExpression),
@@ -534,6 +535,7 @@ impl Parser {
                 TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
+                TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
                 TokenType::LBrace => ExpressionType::Dictionary {
                     kv_pairs: self.parse_dict_literal()?,

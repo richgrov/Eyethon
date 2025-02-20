@@ -70,6 +70,7 @@ impl VM {
                 .cloned()
                 .ok_or_else(|| VMError::UndefinedVariable(name.clone())),
             ExpressionType::Integer(i) => Ok(Value(vec![*i as f64])),
+            ExpressionType::Float(f) => Ok(Value(vec![*f])),
             ExpressionType::Array(elements) => {
                 let mut values = Vec::new();
                 for elem in elements {

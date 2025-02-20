@@ -14,6 +14,7 @@ pub enum TokenType {
     Identifier(String),
     String(String),
     Integer(i64),
+    Float(f64),
 
     If,
     Elif,
@@ -440,18 +441,28 @@ impl Tokenizer {
     fn number(&mut self, first: char) -> Token {
         let mut text = String::with_capacity(8);
         text.push(first);
+        let mut is_float = false;
 
         while let Some(c) = self.peek_char() {
             if c.is_digit(10) {
                 text.push(c);
                 self.next_char();
+            } else if c == '.' && !is_float {
+                text.push(c);
+                self.next_char();
+                is_float = true;
             } else {
                 break;
             }
         }
 
-        let int = text.parse::<i64>().unwrap();
-        self.mk_token(TokenType::Integer(int))
+        if is_float {
+            let float = text.parse::<f64>().unwrap();
+            self.mk_token(TokenType::Float(float))
+        } else {
+            let int = text.parse::<i64>().unwrap();
+            self.mk_token(TokenType::Integer(int))
+        }
     }
 
     fn peek_char(&self) -> Option<char> {
