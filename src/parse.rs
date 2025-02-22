@@ -74,6 +74,10 @@ pub enum ParseError {
     ExpectedEol {
         line: usize,
     },
+    ExpectedIdentifier {
+        line: usize,
+        column: usize,
+    },
     InvalidIndent {
         expected: usize,
         actual: usize,
@@ -97,6 +101,9 @@ impl fmt::Display for ParseError {
             }
             ParseError::ExpectedEol { line } => {
                 write!(f, "{}:{}: expected end of line", line, 0)
+            }
+            ParseError::ExpectedIdentifier { line, column } => {
+                write!(f, "{}:{}: expected identifier", line, column)
             }
             ParseError::InvalidIndent {
                 expected,
@@ -708,7 +715,10 @@ impl Parser {
                 ty: TokenType::Identifier(name),
                 ..
             } => Ok(name.to_owned()),
-            other => Err(ParseError::UnexpectedToken(other.clone())),
+            other => Err(ParseError::ExpectedIdentifier {
+                line: other.line,
+                column: other.column,
+            }),
         }
     }
 
