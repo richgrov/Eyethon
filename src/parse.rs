@@ -368,6 +368,8 @@ impl Parser {
             }
         }
 
+        self.expect_eol()?;
+
         Ok(Statement {
             ty: StatementType::Enum { name, values },
             line: first_tok.line,
