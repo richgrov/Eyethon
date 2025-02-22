@@ -68,6 +68,7 @@ pub struct FunctionCallExpression {
     pub args: Vec<Expression>,
 }
 
+#[derive(Debug)]
 pub enum ParseError {
     UnexpectedToken(Token),
     UnexpectedEof,
