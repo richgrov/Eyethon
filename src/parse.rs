@@ -163,7 +163,7 @@ impl Parser {
                 ..
             } => {
                 let indent = *level;
-                self.next_token();
+                self.consume_token();
                 indent
             }
             _ => 0,
@@ -269,7 +269,7 @@ impl Parser {
         let konst = first_tok.ty == TokenType::Const;
         let identifier = self.expect_identifier()?;
 
-        if self.next_if(TokenType::Colon) {
+        if self.consume_if(TokenType::Colon) {
             let ty = self.expect_identifier()?;
             self.expect_eol()?;
 
@@ -284,7 +284,7 @@ impl Parser {
             });
         }
 
-        if self.next_if(TokenType::ColonEqual) {
+        if self.consume_if(TokenType::ColonEqual) {
             let value = self.expression()?;
             self.expect_eol()?;
 
@@ -328,7 +328,7 @@ impl Parser {
                 ty: TokenType::Identifier(name),
                 ..
             }) => {
-                self.next_token();
+                self.consume_token();
                 Some(name.clone())
             }
             _ => None,
@@ -347,8 +347,8 @@ impl Parser {
         loop {
             let name = self.expect_identifier()?;
 
-            let ordinal = if self.next_if(TokenType::Equal) {
-                let is_negative = self.next_if(TokenType::Minus);
+            let ordinal = if self.consume_if(TokenType::Equal) {
+                let is_negative = self.consume_if(TokenType::Minus);
                 match self.expect_token()? {
                     Token {
                         ty: TokenType::Integer(value),
@@ -395,7 +395,7 @@ impl Parser {
             other => return Err(ParseError::UnexpectedToken(other.clone())),
         };
 
-        if self.next_if(TokenType::RParen) {
+        if self.consume_if(TokenType::RParen) {
             return Ok(Statement {
                 ty: StatementType::Function {
                     name,
@@ -488,7 +488,7 @@ impl Parser {
                 break;
             }
 
-            self.next_token();
+            self.consume_token();
 
             statements.push(self.annotation()?);
         }
@@ -535,7 +535,7 @@ impl Parser {
 
             match token.ty {
                 TokenType::LParen => {
-                    self.next_token();
+                    self.consume_token();
                     let args = self.parse_function_args()?;
 
                     expr = Expression {
@@ -573,7 +573,7 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if self.next_if(TokenType::RBracket) {
+        if self.consume_if(TokenType::RBracket) {
             return Ok(Vec::new());
         }
 
@@ -601,7 +601,7 @@ impl Parser {
     }
 
     fn parse_dict_literal(&mut self) -> Result<Vec<(String, Expression)>, ParseError> {
-        if self.next_if(TokenType::RBrace) {
+        if self.consume_if(TokenType::RBrace) {
             return Ok(Vec::new());
         }
 
@@ -651,7 +651,7 @@ impl Parser {
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if self.next_if(TokenType::RParen) {
+        if self.consume_if(TokenType::RParen) {
             return Ok(Vec::new());
         }
 
@@ -681,7 +681,7 @@ impl Parser {
         self.tokens.get(self.read_index + n - 1)
     }
 
-    fn next_token(&mut self) -> Option<&Token> {
+    fn consume_token(&mut self) -> Option<&Token> {
         let tok = self.tokens.get(self.read_index)?;
         self.last_line = tok.line;
         self.last_column = tok.column;
@@ -689,10 +689,10 @@ impl Parser {
         Some(tok)
     }
 
-    fn next_if(&mut self, ty: TokenType) -> bool {
+    fn consume_if(&mut self, ty: TokenType) -> bool {
         match self.peek_tok() {
             Some(tok) if tok.ty == ty => {
-                self.next_token();
+                self.consume_token();
                 true
             }
             _ => false,
@@ -700,7 +700,7 @@ impl Parser {
     }
 
     fn expect_token(&mut self) -> Result<&Token, ParseError> {
-        self.next_token().ok_or(ParseError::UnexpectedEof)
+        self.consume_token().ok_or(ParseError::UnexpectedEof)
     }
 
     fn expect_identifier(&mut self) -> Result<String, ParseError> {
@@ -717,7 +717,7 @@ impl Parser {
     }
 
     fn expect_eol(&mut self) -> Result<(), ParseError> {
-        match self.next_token() {
+        match self.consume_token() {
             Some(Token {
                 ty: TokenType::Eol, ..
             })
@@ -728,7 +728,7 @@ impl Parser {
 
     fn skip_empty_indented_lines(&mut self) {
         loop {
-            while self.next_if(TokenType::Eol) {}
+            while self.consume_if(TokenType::Eol) {}
 
             let Some(Token {
                 ty: TokenType::Indent { .. },
@@ -742,11 +742,11 @@ impl Parser {
                 Some(Token {
                     ty: TokenType::Eol, ..
                 }) => {
-                    self.next_token();
-                    self.next_token();
+                    self.consume_token();
+                    self.consume_token();
                 }
                 None => {
-                    self.next_token();
+                    self.consume_token();
                 }
                 _ => break,
             }
