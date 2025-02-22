@@ -69,7 +69,7 @@ pub extern "C" fn gd_register_function(
 }
 
 #[no_mangle]
-pub extern "C" fn vm_run(vm: *mut c_void, code: *const c_char) -> i32 {
+pub extern "C" fn gd_run(vm: *mut c_void, code: *const c_char) -> i32 {
     if vm.is_null() || code.is_null() {
         return -1;
     }

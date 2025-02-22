@@ -14,6 +14,6 @@ void gd_vm_destroy(void *vm);
 
 int32_t gd_register_function(void *vm, const char *name, CFunctionCallback callback);
 
-int32_t vm_run(void *vm, const char *code);
+int32_t gd_run(void *vm, const char *code);
 
 }  // extern "C"
