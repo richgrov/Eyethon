@@ -20,6 +20,7 @@ pub enum StatementType {
     If {
         condition: Expression,
         when_true: Vec<Statement>,
+        elifs: Vec<(Expression, Vec<Statement>)>,
     },
     Expression(Expression),
     Var {
@@ -311,11 +312,43 @@ impl Parser {
         }
 
         self.expect_eol()?;
+        let when_true = self.parse_block_scope()?;
+
+        let mut elifs = Vec::new();
+        loop {
+            let Some(indent_info) = self.consume_until_nonempty_line() else {
+                break;
+            };
+
+            let current_indent = self.indent_stack.last().copied().unwrap_or(0);
+            if indent_info.level != current_indent {
+                break;
+            }
+
+            self.consume_token();
+
+            if self.consume_if(TokenType::Elif) {
+                let condition = self.expression()?;
+
+                match self.expect_token()? {
+                    Token {
+                        ty: TokenType::Colon,
+                        ..
+                    } => {}
+                    other => return Err(ParseError::UnexpectedToken(other.clone())),
+                }
+                self.expect_eol()?;
+
+                let statements = self.parse_block_scope()?;
+                elifs.push((condition, statements));
+            }
+        }
 
         Ok(Statement {
             ty: StatementType::If {
                 condition,
-                when_true: self.parse_block_scope()?,
+                when_true,
+                elifs,
             },
             line: first_tok.line,
             column: first_tok.column,
