@@ -125,12 +125,16 @@ impl fmt::Display for ParseError {
     }
 }
 
+struct IndentInfo {
+    level: usize,
+    line: usize,
+    column: usize,
+}
+
 struct Parser {
     tokens: Vec<Token>,
     read_index: usize,
     indent_stack: Vec<usize>,
-    last_line: usize,
-    last_column: usize,
 }
 
 impl Parser {
@@ -149,33 +153,27 @@ impl Parser {
             tokens: without_comment,
             read_index: 0,
             indent_stack: Vec::new(),
-            last_line: 0,
-            last_column: 0,
         }
     }
 
     fn next(&mut self) -> Option<Result<Statement, ParseError>> {
-        self.skip_empty_indented_lines();
+        let indent_info = self.consume_until_nonempty_line()?;
 
-        let indent = match self.peek_tok()? {
-            Token {
-                ty: TokenType::Indent { level },
-                ..
-            } => {
-                let indent = *level;
-                self.consume_token();
-                indent
-            }
-            _ => 0,
+        if let Token {
+            ty: TokenType::Indent { .. },
+            ..
+        } = self.peek_tok()?
+        {
+            self.consume_token();
         };
 
         let epected_indent = self.indent_stack.last().copied().unwrap_or(0);
-        if indent != epected_indent {
+        if indent_info.level != epected_indent {
             return Some(Err(ParseError::InvalidIndent {
                 expected: epected_indent,
-                actual: indent,
-                line: self.last_line,
-                column: self.last_column,
+                actual: indent_info.level,
+                line: indent_info.line,
+                column: indent_info.column,
             }));
         }
 
@@ -196,25 +194,18 @@ impl Parser {
 
         let annotation = self.expression()?;
         self.expect_eol()?;
-        self.skip_empty_indented_lines();
+        let indent_info = self
+            .consume_until_nonempty_line()
+            .ok_or(ParseError::UnexpectedEof)?;
 
-        let (indent, line, column) = match self.peek_tok() {
-            Some(Token {
-                ty: TokenType::Indent { level },
-                line,
-                column,
-            }) => (*level, *line, *column),
-            Some(tok) => (0, tok.line, tok.column),
-            None => return Err(ParseError::UnexpectedEof),
-        };
         let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
 
-        if indent != expected_indent {
+        if indent_info.level != expected_indent {
             return Err(ParseError::InvalidIndent {
                 expected: expected_indent,
-                actual: indent,
-                line,
-                column,
+                actual: indent_info.level,
+                line: indent_info.line,
+                column: indent_info.column,
             });
         }
 
@@ -447,44 +438,28 @@ impl Parser {
     }
 
     fn parse_block_scope(&mut self) -> Result<Vec<Statement>, ParseError> {
-        self.skip_empty_indented_lines();
+        let indent_info = self
+            .consume_until_nonempty_line()
+            .ok_or(ParseError::UnexpectedEof)?;
 
         let mut statements = Vec::new();
         let prev_indent = self.indent_stack.last().copied().unwrap_or(0);
 
-        let (new_indent, line, column) = match self.peek_tok() {
-            Some(Token {
-                ty: TokenType::Indent { level },
-                line,
-                column,
-            }) => (*level, *line, *column),
-            Some(Token { line, column, .. }) => {
-                return Err(ParseError::ExpectedIndent {
-                    line: *line,
-                    column: *column,
-                })
-            }
-            None => return Err(ParseError::UnexpectedEof),
-        };
-
-        if new_indent <= prev_indent {
-            return Err(ParseError::ExpectedIndent { line, column });
+        if indent_info.level <= prev_indent {
+            return Err(ParseError::ExpectedIndent {
+                line: indent_info.line,
+                column: indent_info.column,
+            });
         }
 
-        self.indent_stack.push(new_indent);
+        self.indent_stack.push(indent_info.level);
 
         loop {
-            self.skip_empty_indented_lines();
-
-            let Some(Token {
-                ty: TokenType::Indent { level },
-                ..
-            }) = self.peek_tok()
-            else {
+            let Some(line_indent_info) = self.consume_until_nonempty_line() else {
                 break;
             };
 
-            if *level != new_indent {
+            if line_indent_info.level != indent_info.level {
                 break;
             }
 
@@ -683,8 +658,6 @@ impl Parser {
 
     fn consume_token(&mut self) -> Option<&Token> {
         let tok = self.tokens.get(self.read_index)?;
-        self.last_line = tok.line;
-        self.last_column = tok.column;
         self.read_index += 1;
         Some(tok)
     }
@@ -726,16 +699,27 @@ impl Parser {
         }
     }
 
-    fn skip_empty_indented_lines(&mut self) {
+    fn consume_until_nonempty_line(&mut self) -> Option<IndentInfo> {
         loop {
             while self.consume_if(TokenType::Eol) {}
 
-            let Some(Token {
-                ty: TokenType::Indent { .. },
-                ..
-            }) = self.peek_tok()
-            else {
-                break;
+            let indent_info = match self.peek_tok()? {
+                Token {
+                    ty: TokenType::Indent { level },
+                    line,
+                    column,
+                } => IndentInfo {
+                    level: *level,
+                    line: *line,
+                    column: *column,
+                },
+                other => {
+                    return Some(IndentInfo {
+                        level: 0,
+                        line: other.line,
+                        column: other.column,
+                    })
+                }
             };
 
             match self.peek_n(2) {
@@ -745,10 +729,7 @@ impl Parser {
                     self.consume_token();
                     self.consume_token();
                 }
-                None => {
-                    self.consume_token();
-                }
-                _ => break,
+                Some(_) | None => return Some(indent_info),
             }
         }
     }
