@@ -61,9 +61,16 @@ pub enum ExpressionType {
     Integer(i64),
     Float(f64),
     Array(Vec<Expression>),
-    Dictionary { kv_pairs: Vec<(String, Expression)> },
+    Dictionary {
+        kv_pairs: Vec<(String, Expression)>,
+    },
     FunctionCall(FunctionCallExpression),
     Negate(Box<Expression>),
+    Binary {
+        lhs: Box<Expression>,
+        rhs: Box<Expression>,
+        operator: TokenType,
+    },
 }
 
 #[derive(Debug)]
@@ -502,7 +509,34 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.negate()
+        self.comparison()
+    }
+
+    fn comparison(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.negate()?;
+
+        loop {
+            match self.peek_tok() {
+                Some(Token {
+                    ty: TokenType::LChevron,
+                    ..
+                }) => {
+                    self.consume_token();
+                    expression = Expression {
+                        line: expression.line,
+                        column: expression.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expression),
+                            rhs: Box::new(self.comparison()?),
+                            operator: TokenType::LChevron,
+                        },
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expression)
     }
 
     fn negate(&mut self) -> Result<Expression, ParseError> {
@@ -519,7 +553,7 @@ impl Parser {
         let column = *column;
         self.next();
 
-        let target = self.expression()?;
+        let target = self.negate()?;
 
         Ok(Expression {
             ty: ExpressionType::Negate(Box::new(target)),
