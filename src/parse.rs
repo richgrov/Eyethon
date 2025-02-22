@@ -21,6 +21,7 @@ pub enum StatementType {
         condition: Expression,
         when_true: Vec<Statement>,
     },
+    Expression(Expression),
     Var {
         konst: bool,
         identifier: String,
@@ -192,17 +193,47 @@ impl Parser {
     }
 
     fn annotation(&mut self) -> Result<Statement, ParseError> {
-        let first_tok = self.expect_token()?.clone();
+        let Some(first_tok) = self.peek_tok().cloned() else {
+            return Err(ParseError::UnexpectedEof);
+        };
+
         match first_tok.ty {
-            TokenType::At => {}
-            TokenType::ClassName => return self.class_name(first_tok),
-            TokenType::Extends => return self.extends(first_tok),
-            TokenType::If => return self.if_statement(first_tok),
-            TokenType::Var | TokenType::Const => return self.var_or_const(first_tok),
-            TokenType::Enum => return self.parse_enum(first_tok),
-            TokenType::Func => return self.parse_function(first_tok),
-            _ => return Err(ParseError::UnexpectedToken(first_tok)),
-        }
+            TokenType::At => {
+                self.consume_token();
+            }
+            TokenType::ClassName => {
+                self.consume_token();
+                return self.class_name(first_tok);
+            }
+            TokenType::Extends => {
+                self.consume_token();
+                return self.extends(first_tok);
+            }
+            TokenType::If => {
+                self.consume_token();
+                return self.if_statement(first_tok);
+            }
+            TokenType::Var | TokenType::Const => {
+                self.consume_token();
+                return self.var_or_const(first_tok);
+            }
+            TokenType::Enum => {
+                self.consume_token();
+                return self.parse_enum(first_tok);
+            }
+            TokenType::Func => {
+                self.consume_token();
+                return self.parse_function(first_tok);
+            }
+            _ => {
+                let expr = self.expression()?;
+                return Ok(Statement {
+                    line: expr.line,
+                    column: expr.column,
+                    ty: StatementType::Expression(expr),
+                });
+            }
+        };
 
         let annotation = self.expression()?;
         self.expect_eol()?;
