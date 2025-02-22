@@ -155,50 +155,34 @@ impl Parser {
     }
 
     fn next(&mut self) -> Option<Result<Statement, ParseError>> {
-        if let None = self.peek_tok() {
-            return None;
+        self.skip_empty_indented_lines();
+
+        let indent = match self.peek_tok()? {
+            Token {
+                ty: TokenType::Indent { level },
+                ..
+            } => {
+                let indent = *level;
+                self.next_token();
+                indent
+            }
+            _ => 0,
+        };
+
+        let epected_indent = self.indent_stack.last().copied().unwrap_or(0);
+        if indent != epected_indent {
+            return Some(Err(ParseError::InvalidIndent {
+                expected: epected_indent,
+                actual: indent,
+                line: self.last_line,
+                column: self.last_column,
+            }));
         }
 
         Some(self.annotation())
     }
 
     fn annotation(&mut self) -> Result<Statement, ParseError> {
-        let mut indent = 0;
-
-        loop {
-            while self.next_if(TokenType::Eol) {}
-
-            indent = match self.peek_tok() {
-                Some(Token {
-                    ty: TokenType::Indent { level },
-                    ..
-                }) => *level,
-                Some(_) => break,
-                None => return Err(ParseError::UnexpectedEof),
-            };
-
-            if indent > 0 {
-                self.next();
-            }
-
-            match self.peek_tok() {
-                Some(Token {
-                    ty: TokenType::Eol, ..
-                }) => {}
-                _ => break,
-            }
-        }
-
-        let current_indent = self.indent_stack.last().copied().unwrap_or(0);
-        if indent != current_indent {
-            return Err(ParseError::InvalidIndent {
-                expected: current_indent,
-                actual: indent,
-                line: self.last_line,
-                column: self.last_column,
-            });
-        }
-
         let first_tok = self.expect_token()?.clone();
         match first_tok.ty {
             TokenType::At => {}
@@ -211,6 +195,29 @@ impl Parser {
         }
 
         let annotation = self.expression()?;
+        self.expect_eol()?;
+        self.skip_empty_indented_lines();
+
+        let (indent, line, column) = match self.peek_tok() {
+            Some(Token {
+                ty: TokenType::Indent { level },
+                line,
+                column,
+            }) => (*level, *line, *column),
+            Some(tok) => (0, tok.line, tok.column),
+            None => return Err(ParseError::UnexpectedEof),
+        };
+        let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
+
+        if indent != expected_indent {
+            return Err(ParseError::InvalidIndent {
+                expected: expected_indent,
+                actual: indent,
+                line,
+                column,
+            });
+        }
+
         let target = self.annotation()?;
 
         Ok(Statement {
@@ -440,71 +447,55 @@ impl Parser {
     }
 
     fn parse_block_scope(&mut self) -> Result<Vec<Statement>, ParseError> {
+        self.skip_empty_indented_lines();
 
         let mut statements = Vec::new();
         let prev_indent = self.indent_stack.last().copied().unwrap_or(0);
 
-        let Some((initial_indent, line, column)) = self.next_indented_text()? else {
-            return Err(ParseError::UnexpectedEof);
+        let (new_indent, line, column) = match self.peek_tok() {
+            Some(Token {
+                ty: TokenType::Indent { level },
+                line,
+                column,
+            }) => (*level, *line, *column),
+            Some(Token { line, column, .. }) => {
+                return Err(ParseError::ExpectedIndent {
+                    line: *line,
+                    column: *column,
+                })
+            }
+            None => return Err(ParseError::UnexpectedEof),
         };
 
-        if initial_indent <= prev_indent {
+        if new_indent <= prev_indent {
             return Err(ParseError::ExpectedIndent { line, column });
         }
 
-        statements.push(self.annotation()?);
-        self.indent_stack.push(initial_indent);
+        self.indent_stack.push(new_indent);
 
-        let new_indent = loop {
-            match self.annotation() {
-                Ok(stmt) => {
-                    statements.push(stmt);
-                }
-                Err(ParseError::InvalidIndent {
-                    expected,
-                    actual,
-                    line,
-                    column,
-                }) => {
-                    if actual > expected {
-                        return Err(ParseError::InvalidIndent {
-                            expected,
-                            actual,
-                            line,
-                            column,
-                        });
-                    }
-
-                    self.indent_stack.pop();
-                    break actual;
-                }
-                Err(e) => return Err(e),
-            }
-        };
-
-        Ok(vec![])
-    }
-
-    fn next_indented_text(&mut self) -> Result<Option<(usize, usize, usize)>, ParseError> {
         loop {
-            while self.next_if(TokenType::Eol) {}
+            self.skip_empty_indented_lines();
 
-            let indent = match self.expect_token()? {
-                Token {
-                    ty: TokenType::Indent { level },
-                    ..
-                } => *level,
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            let Some(Token {
+                ty: TokenType::Indent { level },
+                ..
+            }) = self.peek_tok()
+            else {
+                break;
             };
 
-            match self.peek_tok() {
-                Some(Token {
-                    ty: TokenType::Eol, ..
-                }) => {}
-                Some(token) => break Ok(Some((indent, token.line, token.column - 1))),
-                None => break Ok(None),
+            if *level != new_indent {
+                break;
             }
+
+            self.next_token();
+
+            statements.push(self.annotation()?);
         }
+
+        self.indent_stack.pop();
+
+        Ok(statements)
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
@@ -683,7 +674,11 @@ impl Parser {
     }
 
     fn peek_tok(&self) -> Option<&Token> {
-        self.tokens.get(self.read_index)
+        self.peek_n(1)
+    }
+
+    fn peek_n(&self, n: usize) -> Option<&Token> {
+        self.tokens.get(self.read_index + n - 1)
     }
 
     fn next_token(&mut self) -> Option<&Token> {
@@ -728,6 +723,33 @@ impl Parser {
             })
             | None => Ok(()),
             Some(other) => Err(ParseError::ExpectedEol { line: other.line }),
+        }
+    }
+
+    fn skip_empty_indented_lines(&mut self) {
+        loop {
+            while self.next_if(TokenType::Eol) {}
+
+            let Some(Token {
+                ty: TokenType::Indent { .. },
+                ..
+            }) = self.peek_tok()
+            else {
+                break;
+            };
+
+            match self.peek_n(2) {
+                Some(Token {
+                    ty: TokenType::Eol, ..
+                }) => {
+                    self.next_token();
+                    self.next_token();
+                }
+                None => {
+                    self.next_token();
+                }
+                _ => break,
+            }
         }
     }
 }
