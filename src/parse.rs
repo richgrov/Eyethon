@@ -426,6 +426,8 @@ impl Parser {
             other => return Err(ParseError::UnexpectedToken(other.clone())),
         }
 
+        self.expect_eol()?;
+
         Ok(Statement {
             ty: StatementType::Function {
                 name,
@@ -438,12 +440,6 @@ impl Parser {
     }
 
     fn parse_block_scope(&mut self) -> Result<Vec<Statement>, ParseError> {
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::Eol, ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
 
         let mut statements = Vec::new();
         let prev_indent = self.indent_stack.last().copied().unwrap_or(0);
