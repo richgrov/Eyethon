@@ -17,6 +17,10 @@ pub enum StatementType {
     },
     ClassName(String),
     Extends(String),
+    If {
+        condition: Expression,
+        when_true: Vec<Statement>,
+    },
     Var {
         konst: bool,
         identifier: String,
@@ -186,6 +190,7 @@ impl Parser {
             TokenType::At => {}
             TokenType::ClassName => return self.class_name(first_tok),
             TokenType::Extends => return self.extends(first_tok),
+            TokenType::If => return self.if_statement(first_tok),
             TokenType::Var | TokenType::Const => return self.var_or_const(first_tok),
             TokenType::Enum => return self.parse_enum(first_tok),
             TokenType::Func => return self.parse_function(first_tok),
@@ -251,6 +256,29 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Extends(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn if_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let condition = self.expression()?;
+
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::Colon,
+                ..
+            } => {}
+            other => return Err(ParseError::UnexpectedToken(other.clone())),
+        }
+
+        self.expect_eol()?;
+
+        Ok(Statement {
+            ty: StatementType::If {
+                condition,
+                when_true: self.parse_block_scope()?,
+            },
             line: first_tok.line,
             column: first_tok.column,
         })
