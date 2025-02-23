@@ -65,6 +65,11 @@ pub enum StatementType {
         annotation: Expression,
         target: Box<Statement>,
     },
+    Class {
+        name: String,
+        extends: Option<String>,
+        statements: Vec<Statement>,
+    },
     Return(Expression),
     Match {
         expression: Expression,
@@ -330,6 +335,10 @@ impl Parser {
                 self.consume_token();
                 return self.class_name(first_tok);
             }
+            TokenType::Class => {
+                self.consume_token();
+                return self.parse_class(first_tok);
+            }
             TokenType::Extends => {
                 self.consume_token();
                 return self.extends(first_tok);
@@ -464,6 +473,30 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::ClassName(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_class(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let name = self.expect_identifier()?;
+
+        let extends = if self.consume_if(TokenType::Extends) {
+            Some(self.expect_identifier()?)
+        } else {
+            None
+        };
+
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
+        let statements = self.parse_block_scope()?;
+
+        Ok(Statement {
+            ty: StatementType::Class {
+                name,
+                extends,
+                statements,
+            },
             line: first_tok.line,
             column: first_tok.column,
         })
