@@ -46,10 +46,28 @@ impl TryFrom<TokenType> for ReassignmentOperator {
 }
 
 #[derive(Debug)]
+pub enum Pattern {
+    Literal(ExpressionType),
+    Variable(String),
+    Dictionary {
+        pairs: Vec<(String, Pattern)>,
+        rest: bool,
+    },
+    Array {
+        elements: Vec<Pattern>,
+        rest: bool,
+    },
+}
+
+#[derive(Debug)]
 pub enum StatementType {
     Annotation {
         annotation: Expression,
         target: Box<Statement>,
+    },
+    Match {
+        expression: Expression,
+        arms: Vec<(Vec<Pattern>, Vec<Statement>)>,
     },
     Reassignment {
         key: Expression,
@@ -323,6 +341,10 @@ impl Parser {
             TokenType::Func => {
                 self.consume_token();
                 return self.parse_function(first_tok);
+            }
+            TokenType::Match => {
+                self.consume_token();
+                return self.parse_match(first_tok);
             }
             _ => return self.reassignment_statement(),
         };
@@ -620,6 +642,144 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Enum { name, values },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
+        let token = self.expect_token()?.clone();
+
+        match &token.ty {
+            TokenType::Var => {
+                let name = self.expect_identifier()?;
+                Ok(Pattern::Variable(name))
+            }
+            TokenType::LBrace => {
+                let mut pairs = Vec::new();
+                let mut rest = false;
+
+                if self.consume_if(TokenType::RBrace) {
+                    return Ok(Pattern::Dictionary { pairs, rest: false });
+                }
+
+                loop {
+                    if self.consume_if(TokenType::DotDot) {
+                        rest = true;
+                        self.expect(TokenType::RBrace)?;
+                        break;
+                    }
+
+                    let key = self.expect_identifier()?;
+                    self.expect(TokenType::Colon)?;
+                    let value = self.parse_pattern()?;
+                    pairs.push((key, value));
+
+                    match self.expect_token()?.ty {
+                        TokenType::RBrace => break,
+                        TokenType::Comma => continue,
+                        _ => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: vec![TokenType::RBrace, TokenType::Comma],
+                                actual: token,
+                            })
+                        }
+                    }
+                }
+
+                Ok(Pattern::Dictionary { pairs, rest })
+            }
+            TokenType::LBracket => {
+                let mut elements = Vec::new();
+                let mut rest = false;
+
+                if self.consume_if(TokenType::RBracket) {
+                    return Ok(Pattern::Array {
+                        elements,
+                        rest: false,
+                    });
+                }
+
+                loop {
+                    if self.consume_if(TokenType::DotDot) {
+                        rest = true;
+                        self.expect(TokenType::RBracket)?;
+                        break;
+                    }
+
+                    elements.push(self.parse_pattern()?);
+
+                    match self.expect_token()?.ty {
+                        TokenType::RBracket => break,
+                        TokenType::Comma => continue,
+                        _ => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: vec![TokenType::RBracket, TokenType::Comma],
+                                actual: token,
+                            })
+                        }
+                    }
+                }
+
+                Ok(Pattern::Array { elements, rest })
+            }
+            _ => {
+                let expr = self.literal(&token)?;
+                Ok(Pattern::Literal(expr.ty))
+            }
+        }
+    }
+
+    fn parse_match(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let expression = self.expression()?;
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
+
+        let mut arms = Vec::new();
+        let indent_info = self
+            .consume_until_nonempty_line()
+            .ok_or(ParseError::UnexpectedEof)?;
+
+        let prev_indent = self.indent_stack.last().copied().unwrap_or(0);
+        if indent_info.level <= prev_indent {
+            return Err(ParseError::ExpectedIndent {
+                line: indent_info.line,
+                column: indent_info.column,
+            });
+        }
+
+        self.indent_stack.push(indent_info.level);
+
+        loop {
+            let Some(line_indent) = self.consume_until_nonempty_line() else {
+                break;
+            };
+
+            if line_indent.level != indent_info.level {
+                break;
+            }
+
+            self.consume_token();
+
+            let mut patterns = Vec::new();
+            loop {
+                patterns.push(self.parse_pattern()?);
+                if !self.consume_if(TokenType::Comma) {
+                    break;
+                }
+            }
+
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Eol)?;
+
+            let statements = self.parse_block_scope()?;
+            arms.push((patterns, statements));
+        }
+
+        self.indent_stack.pop();
+
+        Ok(Statement {
+            ty: StatementType::Match { expression, arms },
             line: first_tok.line,
             column: first_tok.column,
         })

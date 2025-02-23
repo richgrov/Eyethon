@@ -88,6 +88,7 @@ pub enum TokenType {
     Comma,
     Semicolon,
     Dot,
+    DotDot,
     Tilde,
     Eol,
 }
@@ -175,6 +176,7 @@ impl TokenType {
             Semicolon => ";",
             Dot => "",
             Tilde => "",
+            DotDot => "..",
             Eol => "end of line",
         }
     }
