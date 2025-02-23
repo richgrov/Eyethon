@@ -133,6 +133,7 @@ pub enum ExpressionType {
     Integer(i64),
     Float(f64),
     Array(Vec<Expression>),
+    Super,
     Dictionary {
         kv_pairs: Vec<(String, Expression)>,
     },
@@ -1070,6 +1071,7 @@ impl Parser {
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
+                TokenType::Super => ExpressionType::Super,
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
                 TokenType::LBrace => ExpressionType::Dictionary {
                     kv_pairs: self.parse_dict_literal()?,
