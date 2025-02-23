@@ -10,10 +10,51 @@ pub struct Statement {
 }
 
 #[derive(Debug)]
+pub enum ReassignmentOperator {
+    Assign,
+    AddAssign,
+    SubtractAssign,
+    MultiplyAssign,
+    DivideAssign,
+    ModuloAssign,
+    BitwiseAndAssign,
+    BitwiseOrAssign,
+    BitwiseXorAssign,
+    LeftShiftAssign,
+    RightShiftAssign,
+}
+
+impl TryFrom<TokenType> for ReassignmentOperator {
+    type Error = ();
+
+    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
+        match value {
+            TokenType::Equal => Ok(ReassignmentOperator::Assign),
+            TokenType::PlusEq => Ok(ReassignmentOperator::AddAssign),
+            TokenType::MinusEq => Ok(ReassignmentOperator::SubtractAssign),
+            TokenType::StarEq => Ok(ReassignmentOperator::MultiplyAssign),
+            TokenType::SlashEq => Ok(ReassignmentOperator::DivideAssign),
+            TokenType::PercentEq => Ok(ReassignmentOperator::ModuloAssign),
+            TokenType::AmpersandEq => Ok(ReassignmentOperator::BitwiseAndAssign),
+            TokenType::PipeEq => Ok(ReassignmentOperator::BitwiseOrAssign),
+            TokenType::CarotEq => Ok(ReassignmentOperator::BitwiseXorAssign),
+            TokenType::DoubleLChevronEq => Ok(ReassignmentOperator::LeftShiftAssign),
+            TokenType::DoubleRChevronEq => Ok(ReassignmentOperator::RightShiftAssign),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum StatementType {
     Annotation {
         annotation: Expression,
         target: Box<Statement>,
+    },
+    Reassignment {
+        key: Expression,
+        operator: ReassignmentOperator,
+        value: Expression,
     },
     ClassName(String),
     Extends(String),
@@ -283,14 +324,7 @@ impl Parser {
                 self.consume_token();
                 return self.parse_function(first_tok);
             }
-            _ => {
-                let expr = self.expression()?;
-                return Ok(Statement {
-                    line: expr.line,
-                    column: expr.column,
-                    ty: StatementType::Expression(expr),
-                });
-            }
+            _ => return self.reassignment_statement(),
         };
 
         let annotation = self.expression()?;
@@ -679,6 +713,35 @@ impl Parser {
         self.indent_stack.pop();
 
         Ok(statements)
+    }
+
+    fn reassignment_statement(&mut self) -> Result<Statement, ParseError> {
+        let key = self.expression()?;
+
+        let Some(reassignment) = self
+            .peek_tok()
+            .and_then(|tok| ReassignmentOperator::try_from(tok.ty.clone()).ok())
+        else {
+            return Ok(Statement {
+                line: key.line,
+                column: key.column,
+                ty: StatementType::Expression(key),
+            });
+        };
+
+        self.consume_token();
+        let value = self.expression()?;
+        self.expect(TokenType::Eol)?;
+
+        Ok(Statement {
+            line: key.line,
+            column: key.column,
+            ty: StatementType::Reassignment {
+                key,
+                operator: reassignment,
+                value,
+            },
+        })
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
