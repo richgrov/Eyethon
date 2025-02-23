@@ -65,6 +65,7 @@ pub enum StatementType {
         annotation: Expression,
         target: Box<Statement>,
     },
+    Return(Expression),
     Match {
         expression: Expression,
         arms: Vec<(Vec<Pattern>, Vec<Statement>)>,
@@ -355,6 +356,16 @@ impl Parser {
             TokenType::Match => {
                 self.consume_token();
                 return self.parse_match(first_tok);
+            }
+            TokenType::Return => {
+                self.consume_token();
+                let expr = self.expression()?;
+                self.expect(TokenType::Eol)?;
+                return Ok(Statement {
+                    ty: StatementType::Return(expr),
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
             }
             _ => return self.reassignment_statement(),
         };
