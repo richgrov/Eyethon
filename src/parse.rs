@@ -115,15 +115,11 @@ pub struct FunctionCallExpression {
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnexpectedToken(Token),
+    UnexpectedToken {
+        expected: Vec<TokenType>,
+        actual: Token,
+    },
     UnexpectedEof,
-    ExpectedEol {
-        line: usize,
-    },
-    ExpectedIdentifier {
-        line: usize,
-        column: usize,
-    },
     InvalidIndent {
         expected: usize,
         actual: usize,
@@ -140,17 +136,27 @@ pub enum ParseError {
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ParseError::UnexpectedToken(tok) => {
-                write!(f, "{}:{}: unexpected token {:?}", tok.line, tok.column, tok)
+            ParseError::UnexpectedToken { expected, actual } => {
+                let expected_formatted = expected
+                    .into_iter()
+                    .map(|ty| format!("'{}'", ty.generic_name()))
+                    .collect::<Vec<_>>()
+                    .join(" or ");
+
+                write!(
+                    f,
+                    "{}:{}: expected {} but found '{}'",
+                    actual.line,
+                    actual.column,
+                    expected_formatted,
+                    actual.ty.generic_name()
+                )
             }
             ParseError::UnexpectedEof => {
                 write!(f, "{}:{}: unexpected end of file", 0, 0)
             }
-            ParseError::ExpectedEol { line } => {
-                write!(f, "{}:{}: expected end of line", line, 0)
-            }
-            ParseError::ExpectedIdentifier { line, column } => {
-                write!(f, "{}:{}: expected identifier", line, column)
+            ParseError::ExpectedIndent { line, column } => {
+                write!(f, "{}:{}: expected indentation", line, column)
             }
             ParseError::InvalidIndent {
                 expected,
@@ -164,8 +170,6 @@ impl fmt::Display for ParseError {
                     line, column, expected, actual
                 )
             }
-            ParseError::ExpectedIndent { line, column } => {
-                write!(f, "{}:{}: expected indentation", line, column)
             ParseError::InvalidExpression(tok) => {
                 write!(
                     f,
@@ -282,7 +286,7 @@ impl Parser {
         };
 
         let annotation = self.expression()?;
-        self.expect_eol()?;
+        self.expect(TokenType::Eol)?;
         let indent_info = self
             .consume_until_nonempty_line()
             .ok_or(ParseError::UnexpectedEof)?;
@@ -312,23 +316,9 @@ impl Parser {
 
     fn for_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let variable = self.expect_identifier()?;
-
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::In, ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
-
+        self.expect(TokenType::In)?;
         let iterator = self.expression()?;
-
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::Colon,
-                ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
+        self.expect(TokenType::Colon)?;
 
         let statements = self.parse_block_scope()?;
 
@@ -355,7 +345,12 @@ impl Parser {
                     ty: TokenType::Extends,
                     ..
                 } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::Eol, TokenType::Extends],
+                        actual: other.clone(),
+                    })
+                }
             },
             None => {}
         }
@@ -369,7 +364,7 @@ impl Parser {
 
     fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
-        self.expect_eol()?;
+        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Extends(name),
@@ -381,15 +376,8 @@ impl Parser {
     fn if_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let condition = self.expression()?;
 
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::Colon,
-                ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
-
-        self.expect_eol()?;
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
         let when_true = self.parse_block_scope()?;
 
         let mut elifs = Vec::new();
@@ -416,14 +404,8 @@ impl Parser {
 
             let condition = self.expression()?;
 
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::Colon,
-                    ..
-                } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
-            }
-            self.expect_eol()?;
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Eol)?;
 
             let statements = self.parse_block_scope()?;
             elifs.push((condition, statements));
@@ -450,14 +432,8 @@ impl Parser {
             self.consume_token();
             self.consume_token();
 
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::Colon,
-                    ..
-                } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
-            }
-            self.expect_eol()?;
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Eol)?;
 
             self.parse_block_scope()?
         };
@@ -480,7 +456,7 @@ impl Parser {
 
         if self.consume_if(TokenType::Colon) {
             let ty = self.expect_identifier()?;
-            self.expect_eol()?;
+            self.expect(TokenType::Eol)?;
 
             return Ok(Statement {
                 ty: StatementType::DefaultVar {
@@ -495,7 +471,7 @@ impl Parser {
 
         if self.consume_if(TokenType::ColonEqual) {
             let value = self.expression()?;
-            self.expect_eol()?;
+            self.expect(TokenType::Eol)?;
 
             return Ok(Statement {
                 ty: StatementType::StrictVar {
@@ -508,16 +484,9 @@ impl Parser {
             });
         }
 
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::Equal,
-                ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
-
+        self.expect(TokenType::Equal)?;
         let expr = self.expression()?;
-        self.expect_eol()?;
+        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Var {
@@ -543,13 +512,7 @@ impl Parser {
             _ => None,
         };
 
-        let Token {
-            ty: TokenType::LBrace,
-            ..
-        } = self.expect_token()?
-        else {
-            return Err(ParseError::UnexpectedToken(first_tok.clone()));
-        };
+        self.expect(TokenType::LBrace)?;
 
         let mut values = Vec::new();
 
@@ -563,7 +526,12 @@ impl Parser {
                         ty: TokenType::Integer(value),
                         ..
                     } => Some(if is_negative { -value } else { *value }),
-                    other => return Err(ParseError::UnexpectedToken(other.clone())),
+                    other => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: vec![TokenType::Integer(0)],
+                            actual: other.clone(),
+                        })
+                    }
                 }
             } else {
                 None
@@ -580,11 +548,16 @@ impl Parser {
                     ty: TokenType::Comma,
                     ..
                 } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::RBrace, TokenType::Comma],
+                        actual: other.clone(),
+                    })
+                }
             }
         }
 
-        self.expect_eol()?;
+        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Enum { name, values },
@@ -596,13 +569,7 @@ impl Parser {
     fn parse_function(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
 
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::LParen,
-                ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        };
+        self.expect(TokenType::LParen)?;
 
         if self.consume_if(TokenType::RParen) {
             return Ok(Statement {
@@ -630,19 +597,17 @@ impl Parser {
                     ty: TokenType::Comma,
                     ..
                 } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::RParen, TokenType::Comma],
+                        actual: other.clone(),
+                    })
+                }
             }
         }
 
-        match self.expect_token()? {
-            Token {
-                ty: TokenType::Colon,
-                ..
-            } => {}
-            other => return Err(ParseError::UnexpectedToken(other.clone())),
-        }
-
-        self.expect_eol()?;
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Function {
@@ -814,7 +779,12 @@ impl Parser {
                     ty: TokenType::Comma,
                     ..
                 } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::RBracket, TokenType::Comma],
+                        actual: other.clone(),
+                    })
+                }
             }
         }
 
@@ -838,16 +808,31 @@ impl Parser {
                 } => match key_token.ty {
                     TokenType::String(key) => key,
                     TokenType::Integer(int) => int.to_string(),
-                    _ => return Err(ParseError::UnexpectedToken(key_token.clone())),
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: vec![TokenType::String("".to_owned()), TokenType::Integer(0)],
+                            actual: key_token.clone(),
+                        })
+                    }
                 },
                 Token {
                     ty: TokenType::Equal,
                     ..
                 } => match key_token.ty {
                     TokenType::Identifier(key) => key,
-                    _ => return Err(ParseError::UnexpectedToken(key_token.clone())),
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: vec![TokenType::Identifier("".to_owned())],
+                            actual: key_token.clone(),
+                        })
+                    }
                 },
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::Colon, TokenType::Equal],
+                        actual: other.clone(),
+                    })
+                }
             };
 
             let value = self.expression()?;
@@ -864,7 +849,12 @@ impl Parser {
                     ty: TokenType::Comma,
                     ..
                 } => {}
-                other => return Err(ParseError::UnexpectedToken(other.clone())),
+                other => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::RBrace, TokenType::Comma],
+                        actual: other.clone(),
+                    })
+                }
             }
         }
 
@@ -887,7 +877,12 @@ impl Parser {
                     break;
                 }
                 TokenType::Comma => {}
-                _ => return Err(ParseError::UnexpectedToken(tok.clone())),
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::RParen, TokenType::Comma],
+                        actual: tok.clone(),
+                    })
+                }
             }
         }
 
@@ -922,26 +917,28 @@ impl Parser {
         self.consume_token().ok_or(ParseError::UnexpectedEof)
     }
 
+    fn expect(&mut self, ty: TokenType) -> Result<(), ParseError> {
+        let tok = self.expect_token()?;
+        if std::mem::discriminant(&ty) == std::mem::discriminant(&tok.ty) {
+            Ok(())
+        } else {
+            Err(ParseError::UnexpectedToken {
+                expected: vec![ty],
+                actual: tok.clone(),
+            })
+        }
+    }
+
     fn expect_identifier(&mut self) -> Result<String, ParseError> {
         match self.expect_token()? {
             Token {
                 ty: TokenType::Identifier(name),
                 ..
             } => Ok(name.to_owned()),
-            other => Err(ParseError::ExpectedIdentifier {
-                line: other.line,
-                column: other.column,
+            other => Err(ParseError::UnexpectedToken {
+                expected: vec![TokenType::Identifier("".to_owned())],
+                actual: other.clone(),
             }),
-        }
-    }
-
-    fn expect_eol(&mut self) -> Result<(), ParseError> {
-        match self.consume_token() {
-            Some(Token {
-                ty: TokenType::Eol, ..
-            })
-            | None => Ok(()),
-            Some(other) => Err(ParseError::ExpectedEol { line: other.line }),
         }
     }
 
