@@ -35,8 +35,8 @@ For now, working features are prioritized over performance and 100% adherence
 Project status:
 
 - ✅ Tokenization
-- 🔄 Parsing
-- ❌ Compiling
+- ✅ Parsing
+- 🔄 Compiling
 - 🔄 Interpreting
 - ❌ Optimization
 - 🔄 Rust and C API
