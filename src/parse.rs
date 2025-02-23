@@ -80,6 +80,8 @@ pub enum ExpressionType {
 pub enum BinaryOperator {
     GreaterThan,
     LessThan,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
     Equal,
     NotEqual,
 }
@@ -91,6 +93,8 @@ impl TryFrom<TokenType> for BinaryOperator {
         match value {
             TokenType::LChevron => Ok(BinaryOperator::GreaterThan),
             TokenType::RChevron => Ok(BinaryOperator::LessThan),
+            TokenType::LChevronEq => Ok(BinaryOperator::GreaterThanOrEqual),
+            TokenType::RChevronEq => Ok(BinaryOperator::LessThanOrEqual),
             TokenType::EqualEqual => Ok(BinaryOperator::Equal),
             TokenType::BangEq => Ok(BinaryOperator::NotEqual),
             _ => Err(()),
