@@ -146,6 +146,11 @@ pub enum ExpressionType {
 
 #[derive(Debug)]
 pub enum BinaryOperator {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
     GreaterThan,
     LessThan,
     GreaterThanOrEqual,
@@ -159,6 +164,11 @@ impl TryFrom<TokenType> for BinaryOperator {
 
     fn try_from(value: TokenType) -> Result<Self, Self::Error> {
         match value {
+            TokenType::Plus => Ok(BinaryOperator::Add),
+            TokenType::Minus => Ok(BinaryOperator::Subtract),
+            TokenType::Star => Ok(BinaryOperator::Multiply),
+            TokenType::Slash => Ok(BinaryOperator::Divide),
+            TokenType::Percent => Ok(BinaryOperator::Modulo),
             TokenType::LChevron => Ok(BinaryOperator::GreaterThan),
             TokenType::RChevron => Ok(BinaryOperator::LessThan),
             TokenType::LChevronEq => Ok(BinaryOperator::GreaterThanOrEqual),
@@ -905,7 +915,61 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.comparison()
+        self.add_sub()
+    }
+
+    fn add_sub(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.mul_div()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Plus | TokenType::Minus => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.mul_div()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn mul_div(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.comparison()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Star | TokenType::Slash | TokenType::Percent => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.comparison()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn comparison(&mut self) -> Result<Expression, ParseError> {
