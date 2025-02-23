@@ -71,11 +71,32 @@ pub enum ExpressionType {
     Binary {
         lhs: Box<Expression>,
         rhs: Box<Expression>,
-        operator: TokenType,
+        operator: BinaryOperator,
     },
 }
 
 #[derive(Debug)]
+pub enum BinaryOperator {
+    GreaterThan,
+    LessThan,
+    Equal,
+    NotEqual,
+}
+
+impl TryFrom<TokenType> for BinaryOperator {
+    type Error = ();
+
+    fn try_from(value: TokenType) -> Result<Self, Self::Error> {
+        match value {
+            TokenType::LChevron => Ok(BinaryOperator::GreaterThan),
+            TokenType::RChevron => Ok(BinaryOperator::LessThan),
+            TokenType::EqualEqual => Ok(BinaryOperator::Equal),
+            TokenType::BangEq => Ok(BinaryOperator::NotEqual),
+            _ => Err(()),
+        }
+    }
+}
+
 pub struct FunctionCallExpression {
     pub callee: Box<Expression>,
     pub args: Vec<Expression>,
@@ -580,11 +601,12 @@ impl Parser {
         let mut expression = self.negate()?;
 
         loop {
-            match self.peek_tok() {
-                Some(Token {
-                    ty: TokenType::LChevron,
-                    ..
-                }) => {
+            let Some(operator) = self.peek_tok() else {
+                break;
+            };
+
+            match BinaryOperator::try_from(operator.ty.clone()) {
+                Ok(op) => {
                     self.consume_token();
                     expression = Expression {
                         line: expression.line,
@@ -592,11 +614,11 @@ impl Parser {
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expression),
                             rhs: Box::new(self.comparison()?),
-                            operator: TokenType::LChevron,
+                            operator: op,
                         },
                     }
                 }
-                _ => break,
+                Err(_) => break,
             }
         }
 
