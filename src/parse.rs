@@ -849,39 +849,15 @@ impl Parser {
 
         self.expect(TokenType::LParen)?;
 
-        if self.consume_if(TokenType::RParen) {
-            return Ok(Statement {
-                ty: StatementType::Function {
-                    name,
-                    args: Vec::new(),
-                    statements: self.parse_block_scope()?,
-                },
-                line: first_tok.line,
-                column: first_tok.column,
-            });
-        }
-
         let mut args = Vec::new();
 
         loop {
-            args.push(self.expect_identifier()?);
-
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::RParen,
-                    ..
-                } => break,
-                Token {
-                    ty: TokenType::Comma,
-                    ..
-                } => {}
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::RParen, TokenType::Comma],
-                        actual: other.clone(),
-                    })
-                }
+            if self.consume_if(TokenType::RParen) {
+                break;
             }
+
+            args.push(self.expect_identifier()?);
+            self.consume_if(TokenType::Comma);
         }
 
         self.expect(TokenType::Colon)?;
@@ -1134,46 +1110,28 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if self.consume_if(TokenType::RBracket) {
-            return Ok(Vec::new());
-        }
-
         let mut expressions = Vec::new();
 
         loop {
-            expressions.push(self.expression()?);
-
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::RBracket,
-                    ..
-                } => {
-                    break;
-                }
-                Token {
-                    ty: TokenType::Comma,
-                    ..
-                } => {}
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::RBracket, TokenType::Comma],
-                        actual: other.clone(),
-                    })
-                }
+            if self.consume_if(TokenType::RBracket) {
+                break;
             }
+
+            expressions.push(self.expression()?);
+            self.consume_if(TokenType::Comma);
         }
 
         Ok(expressions)
     }
 
     fn parse_dict_literal(&mut self) -> Result<Vec<(String, Expression)>, ParseError> {
-        if self.consume_if(TokenType::RBrace) {
-            return Ok(Vec::new());
-        }
-
         let mut kv = Vec::new();
 
         loop {
+            if self.consume_if(TokenType::RBrace) {
+                break;
+            }
+
             let key_token = self.expect_token()?.clone();
 
             let key = match self.expect_token()? {
@@ -1213,52 +1171,22 @@ impl Parser {
             let value = self.expression()?;
             kv.push((key, value));
 
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::RBrace,
-                    ..
-                } => {
-                    break;
-                }
-                Token {
-                    ty: TokenType::Comma,
-                    ..
-                } => {}
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::RBrace, TokenType::Comma],
-                        actual: other.clone(),
-                    })
-                }
-            }
+            self.consume_if(TokenType::Comma);
         }
 
         Ok(kv)
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
-        if self.consume_if(TokenType::RParen) {
-            return Ok(Vec::new());
-        }
-
         let mut args = Vec::new();
 
         loop {
-            args.push(self.expression()?);
-
-            let tok = self.expect_token()?;
-            match tok.ty {
-                TokenType::RParen => {
-                    break;
-                }
-                TokenType::Comma => {}
-                _ => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::RParen, TokenType::Comma],
-                        actual: tok.clone(),
-                    })
-                }
+            if self.consume_if(TokenType::RParen) {
+                break;
             }
+
+            args.push(self.expression()?);
+            self.consume_if(TokenType::Comma);
         }
 
         Ok(args)
