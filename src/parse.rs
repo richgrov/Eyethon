@@ -23,6 +23,11 @@ pub enum StatementType {
         elifs: Vec<(Expression, Vec<Statement>)>,
         when_false: Vec<Statement>,
     },
+    For {
+        variable: String,
+        iterator: Expression,
+        statements: Vec<Statement>,
+    },
     Expression(Expression),
     Var {
         konst: bool,
@@ -241,6 +246,10 @@ impl Parser {
                 self.consume_token();
                 return self.if_statement(first_tok);
             }
+            TokenType::For => {
+                self.consume_token();
+                return self.for_statement(first_tok);
+            }
             TokenType::Var | TokenType::Const => {
                 self.consume_token();
                 return self.var_or_const(first_tok);
@@ -286,6 +295,39 @@ impl Parser {
             ty: StatementType::Annotation {
                 annotation,
                 target: Box::new(target),
+            },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn for_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let variable = self.expect_identifier()?;
+
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::In, ..
+            } => {}
+            other => return Err(ParseError::UnexpectedToken(other.clone())),
+        }
+
+        let iterator = self.expression()?;
+
+        match self.expect_token()? {
+            Token {
+                ty: TokenType::Colon,
+                ..
+            } => {}
+            other => return Err(ParseError::UnexpectedToken(other.clone())),
+        }
+
+        let statements = self.parse_block_scope()?;
+
+        Ok(Statement {
+            ty: StatementType::For {
+                variable,
+                iterator,
+                statements,
             },
             line: first_tok.line,
             column: first_tok.column,
