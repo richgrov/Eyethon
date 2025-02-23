@@ -23,6 +23,10 @@ pub enum StatementType {
         elifs: Vec<(Expression, Vec<Statement>)>,
         when_false: Vec<Statement>,
     },
+    While {
+        condition: Expression,
+        statements: Vec<Statement>,
+    },
     For {
         variable: String,
         iterator: Expression,
@@ -259,6 +263,10 @@ impl Parser {
                 self.consume_token();
                 return self.if_statement(first_tok);
             }
+            TokenType::While => {
+                self.consume_token();
+                return self.while_statement(first_tok);
+            }
             TokenType::For => {
                 self.consume_token();
                 return self.for_statement(first_tok);
@@ -326,6 +334,23 @@ impl Parser {
             ty: StatementType::For {
                 variable,
                 iterator,
+                statements,
+            },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn while_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let condition = self.expression()?;
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
+
+        let statements = self.parse_block_scope()?;
+
+        Ok(Statement {
+            ty: StatementType::While {
+                condition,
                 statements,
             },
             line: first_tok.line,
