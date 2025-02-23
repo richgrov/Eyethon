@@ -98,6 +98,7 @@ impl TryFrom<TokenType> for BinaryOperator {
     }
 }
 
+#[derive(Debug)]
 pub struct FunctionCallExpression {
     pub callee: Box<Expression>,
     pub args: Vec<Expression>,
