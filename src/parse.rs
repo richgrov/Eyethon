@@ -134,6 +134,7 @@ pub enum ParseError {
         line: usize,
         column: usize,
     },
+    InvalidExpression(Token),
 }
 
 impl fmt::Display for ParseError {
@@ -165,6 +166,14 @@ impl fmt::Display for ParseError {
             }
             ParseError::ExpectedIndent { line, column } => {
                 write!(f, "{}:{}: expected indentation", line, column)
+            ParseError::InvalidExpression(tok) => {
+                write!(
+                    f,
+                    "{}:{}: invalid expression- found '{}'",
+                    tok.line,
+                    tok.column,
+                    tok.ty.generic_name()
+                )
             }
         }
     }
@@ -777,7 +786,7 @@ impl Parser {
                 TokenType::LBrace => ExpressionType::Dictionary {
                     kv_pairs: self.parse_dict_literal()?,
                 },
-                _ => return Err(ParseError::UnexpectedToken(first_tok.clone())),
+                _ => return Err(ParseError::InvalidExpression(first_tok.clone())),
             },
             line: first_tok.line,
             column: first_tok.column,
