@@ -21,6 +21,7 @@ pub enum StatementType {
         condition: Expression,
         when_true: Vec<Statement>,
         elifs: Vec<(Expression, Vec<Statement>)>,
+        when_false: Vec<Statement>,
     },
     Expression(Expression),
     Var {
@@ -346,30 +347,71 @@ impl Parser {
                 break;
             }
 
+            let Some(Token {
+                ty: TokenType::Elif,
+                ..
+            }) = self.peek_n(2)
+            else {
+                break;
+            };
+
+            self.consume_token();
             self.consume_token();
 
-            if self.consume_if(TokenType::Elif) {
-                let condition = self.expression()?;
+            let condition = self.expression()?;
 
-                match self.expect_token()? {
-                    Token {
-                        ty: TokenType::Colon,
-                        ..
-                    } => {}
-                    other => return Err(ParseError::UnexpectedToken(other.clone())),
-                }
-                self.expect_eol()?;
-
-                let statements = self.parse_block_scope()?;
-                elifs.push((condition, statements));
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::Colon,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
             }
+            self.expect_eol()?;
+
+            let statements = self.parse_block_scope()?;
+            elifs.push((condition, statements));
         }
+
+        let when_false = 'when_false: {
+            let Some(indent_info) = self.consume_until_nonempty_line() else {
+                break 'when_false vec![];
+            };
+
+            let current_indent = self.indent_stack.last().copied().unwrap_or(0);
+            if indent_info.level != current_indent {
+                break 'when_false vec![];
+            }
+
+            let Some(Token {
+                ty: TokenType::Else,
+                ..
+            }) = self.peek_n(2)
+            else {
+                break 'when_false vec![];
+            };
+
+            self.consume_token();
+            self.consume_token();
+
+            match self.expect_token()? {
+                Token {
+                    ty: TokenType::Colon,
+                    ..
+                } => {}
+                other => return Err(ParseError::UnexpectedToken(other.clone())),
+            }
+            self.expect_eol()?;
+
+            self.parse_block_scope()?
+        };
 
         Ok(Statement {
             ty: StatementType::If {
                 condition,
                 when_true,
                 elifs,
+                when_false,
             },
             line: first_tok.line,
             column: first_tok.column,
