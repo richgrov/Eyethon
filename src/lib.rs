@@ -34,6 +34,7 @@ mod tests {
         );
 
         let bytecode = compile::compile(statements, annotation_handlers);
+        println!("{:?}", bytecode);
 
         let mut vm = VM::new();
         vm.register_native("print", |args| {

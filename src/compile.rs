@@ -2,13 +2,17 @@ use std::collections::HashMap;
 
 use crate::parse::{Statement, StatementType};
 
+#[derive(Debug)]
 pub struct ClassBytecode {
     name: Option<String>,
     extends: Option<String>,
 }
 
+#[derive(Debug)]
 pub enum CompileError {
     InvalidAnnotation { name: String },
+    InvalidClassName { line: usize, column: usize },
+    InvalidExtends { line: usize, column: usize },
 }
 
 pub type AnnotationHandler = Box<dyn Fn()>;
@@ -17,6 +21,7 @@ struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
     extends: Option<String>,
+    non_class_name_statement_seen: bool,
 }
 
 impl Compiler {
@@ -26,6 +31,7 @@ impl Compiler {
 
             class_name: None,
             extends: None,
+            non_class_name_statement_seen: false,
         }
     }
 
@@ -53,6 +59,40 @@ impl Compiler {
 
                 handler();
                 self.handle_statement(*target)?;
+            }
+            StatementType::ClassName(name) => {
+                if self.non_class_name_statement_seen {
+                    return Err(CompileError::InvalidClassName {
+                        line: statement.line,
+                        column: statement.column,
+                    });
+                }
+
+                if let Some(_) = self.class_name {
+                    return Err(CompileError::InvalidClassName {
+                        line: statement.line,
+                        column: statement.column,
+                    });
+                }
+
+                let _ = self.class_name.insert(name);
+            }
+            StatementType::Extends(name) => {
+                if self.non_class_name_statement_seen {
+                    return Err(CompileError::InvalidExtends {
+                        line: statement.line,
+                        column: statement.column,
+                    });
+                }
+
+                if let Some(_) = self.extends {
+                    return Err(CompileError::InvalidExtends {
+                        line: statement.line,
+                        column: statement.column,
+                    });
+                }
+
+                let _ = self.extends.insert(name);
             }
             _ => {
                 println!("{:?}", statement);
