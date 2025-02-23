@@ -62,7 +62,8 @@ pub enum Pattern {
 #[derive(Debug)]
 pub enum StatementType {
     Annotation {
-        annotation: Expression,
+        name: String,
+        args: Vec<Expression>,
         target: Box<Statement>,
     },
     Class {
@@ -384,7 +385,20 @@ impl Parser {
             _ => return self.reassignment_statement(),
         };
 
-        let annotation = self.expression()?;
+        let name = self.expect_identifier()?;
+        let mut args = Vec::new();
+
+        if self.consume_if(TokenType::LParen) {
+            loop {
+                if self.consume_if(TokenType::RParen) {
+                    break;
+                }
+
+                args.push(self.expression()?);
+                self.consume_if(TokenType::Comma);
+            }
+        }
+
         self.expect(TokenType::Eol)?;
         let indent_info = self
             .consume_until_nonempty_line()
@@ -405,7 +419,8 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Annotation {
-                annotation,
+                name,
+                args,
                 target: Box::new(target),
             },
             line: first_tok.line,

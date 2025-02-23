@@ -26,7 +26,12 @@ mod tests {
         let statements = parse::parse(tokens).unwrap();
 
         let mut annotation_handlers: HashMap<String, Box<dyn Fn()>> = HashMap::new();
-        annotation_handlers.insert("icon".to_owned(), Box::new(|| {}));
+        annotation_handlers.insert(
+            "icon".to_owned(),
+            Box::new(|| {
+                println!("icon annotation");
+            }),
+        );
 
         let bytecode = compile::compile(statements, annotation_handlers);
 

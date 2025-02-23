@@ -8,7 +8,7 @@ pub struct ClassBytecode {
 }
 
 pub enum CompileError {
-    InvalidAnnotation,
+    InvalidAnnotation { name: String },
 }
 
 pub type AnnotationHandler = Box<dyn Fn()>;
@@ -34,7 +34,7 @@ impl Compiler {
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
         for statement in statements {
-            self.handle_statement(statement);
+            self.handle_statement(statement)?;
         }
 
         Ok(ClassBytecode {
@@ -43,8 +43,23 @@ impl Compiler {
         })
     }
 
-    fn handle_statement(&mut self, statement: Statement) {
-        println!("{:?}", statement);
+    fn handle_statement(&mut self, statement: Statement) -> Result<(), CompileError> {
+        match statement.ty {
+            StatementType::Annotation { name, target, .. } => {
+                let handler = self
+                    .annotation_handlers
+                    .get(&name)
+                    .ok_or(CompileError::InvalidAnnotation { name })?;
+
+                handler();
+                self.handle_statement(*target)?;
+            }
+            _ => {
+                println!("{:?}", statement);
+            }
+        }
+
+        Ok(())
     }
 }
 
