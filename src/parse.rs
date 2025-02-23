@@ -137,6 +137,10 @@ pub enum ExpressionType {
     Dictionary {
         kv_pairs: Vec<(String, Expression)>,
     },
+    AttributeAccess {
+        expr: Box<Expression>,
+        attribute: String,
+    },
     FunctionCall(FunctionCallExpression),
     Negate(Box<Expression>),
     Binary {
@@ -1053,6 +1057,19 @@ impl Parser {
                             callee: Box::new(expr),
                             args,
                         }),
+                        line: token.line,
+                        column: token.column,
+                    }
+                }
+                TokenType::Dot => {
+                    self.consume_token();
+                    let attribute = self.expect_identifier()?;
+
+                    expr = Expression {
+                        ty: ExpressionType::AttributeAccess {
+                            expr: Box::new(expr),
+                            attribute,
+                        },
                         line: token.line,
                         column: token.column,
                     }
