@@ -388,7 +388,12 @@ impl Tokenizer {
                 ']' => break Ok(self.mk_token(TokenType::RBracket)),
                 ',' => break Ok(self.mk_token(TokenType::Comma)),
                 ';' => break Ok(self.mk_token(TokenType::Semicolon)),
-                '.' => break Ok(self.mk_token(TokenType::Dot)),
+
+                '.' => match self.peek_char() {
+                    Some(c) if c.is_ascii_digit() => break Ok(self.number('.')),
+                    _ => break Ok(self.mk_token(TokenType::Dot)),
+                },
+
                 '~' => break Ok(self.mk_token(TokenType::Tilde)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
@@ -533,26 +538,86 @@ impl Tokenizer {
     fn number(&mut self, first: char) -> Token {
         let mut text = String::with_capacity(8);
         text.push(first);
-        let mut is_float = false;
 
-        while let Some(c) = self.peek_char() {
-            if c.is_digit(10) {
-                text.push(c);
-                self.next_char();
-            } else if c == '.' && !is_float {
-                text.push(c);
-                self.next_char();
-                is_float = true;
-            } else {
-                break;
+        let mut is_float = first == '.';
+
+        if !is_float {
+            while let Some(c) = self.peek_char() {
+                if c.is_digit(10) {
+                    text.push(c);
+                    self.next_char();
+                } else if c == '_' {
+                    self.next_char();
+                } else if c == '.' {
+                    text.push(c);
+                    self.next_char();
+                    is_float = true;
+                    break;
+                } else {
+                    break;
+                }
             }
         }
 
         if is_float {
-            let float = text.parse::<f64>().unwrap();
+            let mut exponent_seen = false;
+
+            while let Some(c) = self.peek_char() {
+                if c.is_digit(10) {
+                    text.push(c);
+                    self.next_char();
+                } else if c == '_' {
+                    self.next_char();
+                } else if c == 'e' {
+                    text.push(c);
+                    self.next_char();
+                    exponent_seen = true;
+                    break;
+                } else {
+                    break;
+                }
+            }
+
+            if exponent_seen {
+                match self.peek_char() {
+                    Some('+') => {
+                        text.push('+');
+                        self.next_char();
+                    }
+                    Some('-') => {
+                        text.push('-');
+                        self.next_char();
+                    }
+                    _ => {}
+                }
+
+                while let Some(c) = self.peek_char() {
+                    if c == '_' {
+                        self.next_char();
+                        continue;
+                    }
+
+                    if !c.is_ascii_digit() {
+                        break;
+                    }
+
+                    text.push(c);
+                    self.next_char();
+                }
+            }
+        }
+
+        if is_float {
+            let float = text.parse::<f64>().expect(&format!(
+                "{}:{}: internal error parsing {} as float",
+                self.line, self.column, text
+            ));
             self.mk_token(TokenType::Float(float))
         } else {
-            let int = text.parse::<i64>().unwrap();
+            let int = text.parse::<i64>().expect(&format!(
+                "{}:{}: internal error parsing {} as integer",
+                self.line, self.column, text
+            ));
             self.mk_token(TokenType::Integer(int))
         }
     }
