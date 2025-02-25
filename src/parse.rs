@@ -675,12 +675,11 @@ impl Parser {
             let name = self.expect_identifier()?;
 
             let ordinal = if self.consume_if(TokenType::Equal) {
-                let is_negative = self.consume_if(TokenType::Minus);
                 match self.expect_token()? {
                     Token {
                         ty: TokenType::Integer(value),
                         ..
-                    } => Some(if is_negative { -value } else { *value }),
+                    } => Some(*value),
                     other => {
                         return Err(ParseError::UnexpectedToken {
                             expected: vec![TokenType::Integer(0)],

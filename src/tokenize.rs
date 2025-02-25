@@ -266,13 +266,15 @@ impl Tokenizer {
                     break Ok(self.mk_token(TokenType::Plus));
                 }
 
-                '-' => {
-                    if self.peek_char() == Some('=') {
+                '-' => match self.peek_char() {
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::MinusEq));
                     }
-                    break Ok(self.mk_token(TokenType::Minus));
-                }
+                    Some(d) if d.is_ascii_digit() => break Ok(self.number('-')),
+
+                    _ => break Ok(self.mk_token(TokenType::Minus)),
+                },
 
                 '*' => {
                     if self.peek_char() == Some('=') {
