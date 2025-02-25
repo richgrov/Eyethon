@@ -1053,7 +1053,7 @@ impl Parser {
         let column = *column;
         self.next();
 
-        let target = self.negate()?;
+        let target = self.attribute_access()?;
 
         Ok(Expression {
             ty: ExpressionType::Negate(Box::new(target)),
