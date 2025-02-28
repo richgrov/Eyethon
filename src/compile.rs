@@ -4,10 +4,10 @@ use crate::parse::{Expression, ExpressionType, Statement, StatementType, Variabl
 
 #[derive(Debug)]
 pub struct ClassBytecode {
-    name: Option<String>,
-    extends: Option<String>,
-    bytecode: Vec<Instruction>,
-    functions: HashMap<String, usize>,
+    pub name: Option<String>,
+    pub extends: Option<String>,
+    pub bytecode: Vec<Instruction>,
+    pub functions: HashMap<String, usize>,
 }
 
 #[derive(Debug)]

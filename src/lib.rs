@@ -1,13 +1,12 @@
 mod compile;
+mod interpret;
 mod parse;
 mod tokenize;
-mod vm;
 
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
-    use crate::vm::*;
     use crate::*;
 
     struct Test {
@@ -109,27 +108,11 @@ mod tests {
             }),
         );
 
-        let bytecode = compile::compile(statements, annotation_handlers);
+        let bytecode = compile::compile(statements, annotation_handlers).unwrap();
         println!("{:?}", bytecode);
 
-        let mut vm = VM::new();
-        vm.register_native("print", |args| {
-            for list in args {
-                print!("(");
-                for f in &list.0 {
-                    print!("{}", f);
-                }
-                println!(")");
-            }
-
-            Value(vec![])
-        });
-
-        match vm.run(&[]) {
-            Ok(()) => {}
-            Err(e) => {
-                eprintln!("error: {:?}", e);
-            }
-        }
+        let mut vm = interpret::Interpreter::new();
+        vm.register_class(bytecode, "main".to_owned());
+        vm.run("main").unwrap();
     }
 }
