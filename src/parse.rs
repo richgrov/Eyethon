@@ -102,17 +102,8 @@ pub enum StatementType {
     Var {
         konst: bool,
         identifier: String,
-        value: Expression,
-    },
-    DefaultVar {
-        konst: bool,
-        identifier: String,
-        ty: String,
-    },
-    StrictVar {
-        konst: bool,
-        identifier: String,
-        value: Expression,
+        ty: VariableType,
+        value: Option<Expression>,
     },
     Enum {
         name: Option<String>,
@@ -123,6 +114,13 @@ pub enum StatementType {
         args: Vec<String>,
         statements: Vec<Statement>,
     },
+}
+
+#[derive(Debug)]
+pub enum VariableType {
+    Dynamic,
+    Inferred,
+    Static(String),
 }
 
 #[derive(Debug)]
@@ -614,10 +612,11 @@ impl Parser {
             self.expect(TokenType::Eol)?;
 
             return Ok(Statement {
-                ty: StatementType::DefaultVar {
+                ty: StatementType::Var {
                     konst,
                     identifier,
-                    ty,
+                    ty: VariableType::Static(ty),
+                    value: None,
                 },
                 line: first_tok.line,
                 column: first_tok.column,
@@ -629,10 +628,11 @@ impl Parser {
             self.expect(TokenType::Eol)?;
 
             return Ok(Statement {
-                ty: StatementType::StrictVar {
+                ty: StatementType::Var {
                     konst,
                     identifier,
-                    value,
+                    ty: VariableType::Inferred,
+                    value: Some(value),
                 },
                 line: first_tok.line,
                 column: first_tok.column,
@@ -647,7 +647,8 @@ impl Parser {
             ty: StatementType::Var {
                 konst,
                 identifier,
-                value: expr,
+                ty: VariableType::Dynamic,
+                value: Some(expr),
             },
             line: first_tok.line,
             column: first_tok.column,
