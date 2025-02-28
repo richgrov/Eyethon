@@ -1,27 +1,58 @@
 use std::collections::HashMap;
 
-use crate::parse::{Statement, StatementType};
+use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
 #[derive(Debug)]
 pub struct ClassBytecode {
     name: Option<String>,
     extends: Option<String>,
+    bytecode: Vec<Instruction>,
+    functions: HashMap<String, usize>,
+}
+
+#[derive(Debug)]
+pub enum Instruction {
+    PushSelf,
+    PushInt(i64),
+    PushFloat(f64),
+    PushString(String),
+    Store,
 }
 
 #[derive(Debug)]
 pub enum CompileError {
-    InvalidAnnotation { name: String },
-    InvalidClassName { line: usize, column: usize },
-    InvalidExtends { line: usize, column: usize },
+    InvalidAnnotation {
+        name: String,
+    },
+    InvalidClassName {
+        line: usize,
+        column: usize,
+    },
+    InvalidExtends {
+        line: usize,
+        column: usize,
+    },
+    NotImplemented {
+        line: usize,
+        column: usize,
+        message: String,
+    },
 }
 
 pub type AnnotationHandler = Box<dyn Fn()>;
+
+struct VariableInfo {
+    index: usize,
+    konst: bool,
+    ty: VariableType,
+}
 
 struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
+    init_instructions: Vec<Instruction>,
 }
 
 impl Compiler {
@@ -32,6 +63,7 @@ impl Compiler {
             class_name: None,
             extends: None,
             non_class_name_statement_seen: false,
+            init_instructions: Vec::new(),
         }
     }
 
@@ -46,6 +78,8 @@ impl Compiler {
         Ok(ClassBytecode {
             name: self.class_name,
             extends: self.extends,
+            bytecode: self.init_instructions,
+            functions: HashMap::new(),
         })
     }
 
@@ -94,8 +128,59 @@ impl Compiler {
 
                 let _ = self.extends.insert(name);
             }
-            _ => {
-                println!("{:?}", statement);
+            StatementType::Var {
+                konst: _,
+                identifier,
+                ty: _,
+                value,
+            } => {
+                let Some(val) = value else { return Ok(()) };
+
+                self.on_init(Instruction::PushSelf);
+                self.on_init(Instruction::PushString(identifier));
+
+                let mut expression_instructions = Vec::new();
+                Self::evaluate_expression(&mut expression_instructions, val)?;
+                self.init_instructions.extend(expression_instructions);
+
+                self.on_init(Instruction::Store);
+            }
+            other => {
+                return Err(CompileError::NotImplemented {
+                    line: statement.line,
+                    column: statement.column,
+                    message: format!("{:?} not implemented yet", other),
+                })
+            }
+        }
+
+        Ok(())
+    }
+
+    fn on_init(&mut self, instruction: Instruction) {
+        self.init_instructions.push(instruction);
+    }
+
+    fn evaluate_expression(
+        instructions: &mut Vec<Instruction>,
+        expression: Expression,
+    ) -> Result<(), CompileError> {
+        match expression.ty {
+            ExpressionType::String(str) => {
+                instructions.push(Instruction::PushString(str));
+            }
+            ExpressionType::Integer(i) => {
+                instructions.push(Instruction::PushInt(i));
+            }
+            ExpressionType::Float(f) => {
+                instructions.push(Instruction::PushFloat(f));
+            }
+            other => {
+                return Err(CompileError::NotImplemented {
+                    line: expression.line,
+                    column: expression.column,
+                    message: format!("{:?} not implemented yet", other),
+                })
             }
         }
 
