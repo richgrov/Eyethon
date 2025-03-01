@@ -109,6 +109,7 @@ pub enum StatementType {
         name: Option<String>,
         values: Vec<(String, Option<i64>)>,
     },
+    Pass,
 }
 
 #[derive(Debug)]
@@ -372,6 +373,14 @@ impl Parser {
                 self.expect(TokenType::Eol)?;
                 return Ok(Statement {
                     ty: StatementType::Return(expr),
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
+            }
+            TokenType::Pass => {
+                self.consume_token();
+                return Ok(Statement {
+                    ty: StatementType::Pass,
                     line: first_tok.line,
                     column: first_tok.column,
                 });
