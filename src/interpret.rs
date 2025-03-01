@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
@@ -41,6 +42,26 @@ impl PartialEq for Value {
 
 impl Eq for Value {}
 
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Integer(i) => write!(f, "{}", i),
+            Value::Float(fl) => write!(f, "{}", fl),
+            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Object(o) => {
+                write!(f, "{{")?;
+                for (i, (k, v)) in o.borrow().iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
+                }
+                write!(f, "}}")
+            }
+        }
+    }
+}
+
 pub struct Interpreter {
     classes: HashMap<String, ClassBytecode>,
     class_objects: HashMap<String, Value>,
@@ -78,7 +99,7 @@ impl Interpreter {
         let this = Value::Object(Rc::new(RefCell::new(HashMap::new())));
         self.call_function(class_name, &vec![this.clone()])?;
 
-        println!("{:?}", this);
+        println!("{}", this);
 
         Ok(())
     }
