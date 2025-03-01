@@ -1114,7 +1114,11 @@ impl Parser {
             }
 
             args.push(self.expect_identifier()?);
-            self.consume_if(TokenType::Comma);
+
+            if !self.consume_if(TokenType::Comma) {
+                self.expect(TokenType::RParen)?;
+                break;
+            }
         }
 
         self.expect(TokenType::Colon)?;
@@ -1136,7 +1140,11 @@ impl Parser {
             }
 
             expressions.push(self.expression()?);
-            self.consume_if(TokenType::Comma);
+
+            if !self.consume_if(TokenType::Comma) {
+                self.expect(TokenType::RBracket)?;
+                break;
+            }
         }
 
         Ok(expressions)
@@ -1206,7 +1214,10 @@ impl Parser {
             let value = self.expression()?;
             kv.push((key, value));
 
-            self.consume_if(TokenType::Comma);
+            if !self.consume_if(TokenType::Comma) {
+                self.expect(TokenType::RBrace)?;
+                break;
+            }
         }
 
         Ok(kv)
@@ -1221,7 +1232,11 @@ impl Parser {
             }
 
             args.push(self.expression()?);
-            self.consume_if(TokenType::Comma);
+
+            if !self.consume_if(TokenType::Comma) {
+                self.expect(TokenType::RParen)?;
+                break;
+            }
         }
 
         Ok(args)
