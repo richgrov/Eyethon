@@ -619,7 +619,7 @@ impl Parser {
         let konst = first_tok.ty == TokenType::Const;
         let identifier = self.expect_identifier()?;
 
-        if self.consume_if(TokenType::Colon) {
+        let (ty, value) = if self.consume_if(TokenType::Colon) {
             let ty = self.expect_identifier()?;
 
             let value = if self.consume_if(TokenType::Equal) {
@@ -628,46 +628,27 @@ impl Parser {
                 None
             };
 
-            self.expect(TokenType::Eol)?;
-
-            return Ok(Statement {
-                ty: StatementType::Var {
-                    konst,
-                    identifier,
-                    ty: VariableType::Static(ty),
-                    value,
-                },
-                line: first_tok.line,
-                column: first_tok.column,
-            });
-        }
-
-        if self.consume_if(TokenType::ColonEqual) {
+            (VariableType::Static(ty), value)
+        } else if self.consume_if(TokenType::ColonEqual) {
             let value = self.expression()?;
-            self.expect(TokenType::Eol)?;
+            (VariableType::Inferred, Some(value))
+        } else {
+            let value = if self.consume_if(TokenType::Equal) {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+            (VariableType::Dynamic, value)
+        };
 
-            return Ok(Statement {
-                ty: StatementType::Var {
-                    konst,
-                    identifier,
-                    ty: VariableType::Inferred,
-                    value: Some(value),
-                },
-                line: first_tok.line,
-                column: first_tok.column,
-            });
-        }
-
-        self.expect(TokenType::Equal)?;
-        let expr = self.expression()?;
-        self.expect(TokenType::Eol)?;
+        self.expect_end()?;
 
         Ok(Statement {
             ty: StatementType::Var {
                 konst,
                 identifier,
-                ty: VariableType::Dynamic,
-                value: Some(expr),
+                ty,
+                value,
             },
             line: first_tok.line,
             column: first_tok.column,
