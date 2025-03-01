@@ -1146,6 +1146,19 @@ impl Parser {
             }
 
             let key_token = self.expect_token()?.clone();
+            match key_token.ty {
+                TokenType::String(_) | TokenType::Integer(_) | TokenType::Identifier(_) => {}
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![
+                            TokenType::String("".to_owned()),
+                            TokenType::Integer(0),
+                            TokenType::Identifier("".to_owned()),
+                        ],
+                        actual: key_token,
+                    })
+                }
+            };
 
             let key = match self.expect_token()? {
                 Token {
