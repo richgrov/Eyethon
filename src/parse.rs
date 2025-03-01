@@ -134,6 +134,7 @@ pub enum ExpressionType {
     Float(f64),
     Array(Vec<Expression>),
     Super,
+    Parenthesis(Box<Expression>),
     Dictionary {
         kv_pairs: Vec<(String, Expression)>,
     },
@@ -1092,6 +1093,13 @@ impl Parser {
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
                 TokenType::Func => self.parse_func()?,
+                TokenType::LParen => {
+                    self.indent_aware_stack.push(false);
+                    let expr = self.expression()?;
+                    self.expect(TokenType::RParen)?;
+                    self.indent_aware_stack.pop();
+                    ExpressionType::Parenthesis(Box::new(expr))
+                }
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
                 TokenType::LBrace => ExpressionType::Dictionary {
                     kv_pairs: self.parse_dict_literal()?,
