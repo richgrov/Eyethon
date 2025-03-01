@@ -172,19 +172,6 @@ impl Compiler {
 
                 self.on_init(Instruction::Store);
             }
-            StatementType::Function {
-                name: _,
-                args: _,
-                statements,
-            } => {
-                self.function_scope_stack.push(());
-
-                for statement in statements {
-                    self.handle_statement(statement)?;
-                }
-
-                self.function_scope_stack.pop();
-            }
             other => {
                 return Err(CompileError::NotImplemented {
                     line: statement.line,

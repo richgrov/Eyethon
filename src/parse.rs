@@ -109,11 +109,6 @@ pub enum StatementType {
         name: Option<String>,
         values: Vec<(String, Option<i64>)>,
     },
-    Function {
-        name: String,
-        args: Vec<String>,
-        statements: Vec<Statement>,
-    },
 }
 
 #[derive(Debug)]
@@ -144,6 +139,11 @@ pub enum ExpressionType {
     AttributeAccess {
         expr: Box<Expression>,
         attribute: String,
+    },
+    Function {
+        name: String,
+        args: Vec<String>,
+        statements: Vec<Statement>,
     },
     FunctionCall(FunctionCallExpression),
     Negate(Box<Expression>),
@@ -361,10 +361,6 @@ impl Parser {
             TokenType::Enum => {
                 self.consume_token();
                 return self.parse_enum(first_tok);
-            }
-            TokenType::Func => {
-                self.consume_token();
-                return self.parse_function(first_tok);
             }
             TokenType::Match => {
                 self.consume_token();
@@ -859,36 +855,6 @@ impl Parser {
         })
     }
 
-    fn parse_function(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
-
-        self.expect(TokenType::LParen)?;
-
-        let mut args = Vec::new();
-
-        loop {
-            if self.consume_if(TokenType::RParen) {
-                break;
-            }
-
-            args.push(self.expect_identifier()?);
-            self.consume_if(TokenType::Comma);
-        }
-
-        self.expect(TokenType::Colon)?;
-        self.expect(TokenType::Eol)?;
-
-        Ok(Statement {
-            ty: StatementType::Function {
-                name,
-                args,
-                statements: self.parse_block_scope()?,
-            },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
-    }
-
     fn parse_block_scope(&mut self) -> Result<Vec<Statement>, ParseError> {
         let indent_info = self
             .consume_until_nonempty_line()
@@ -1113,6 +1079,7 @@ impl Parser {
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
+                TokenType::Func => self.parse_func()?,
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
                 TokenType::LBrace => ExpressionType::Dictionary {
                     kv_pairs: self.parse_dict_literal()?,
@@ -1121,6 +1088,32 @@ impl Parser {
             },
             line: first_tok.line,
             column: first_tok.column,
+        })
+    }
+
+    fn parse_func(&mut self) -> Result<ExpressionType, ParseError> {
+        let name = self.expect_identifier()?;
+
+        self.expect(TokenType::LParen)?;
+
+        let mut args = Vec::new();
+
+        loop {
+            if self.consume_if(TokenType::RParen) {
+                break;
+            }
+
+            args.push(self.expect_identifier()?);
+            self.consume_if(TokenType::Comma);
+        }
+
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
+
+        Ok(ExpressionType::Function {
+            name,
+            args,
+            statements: self.parse_block_scope()?,
         })
     }
 
