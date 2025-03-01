@@ -12,7 +12,7 @@ pub struct ClassBytecode {
 
 #[derive(Debug)]
 pub enum Instruction {
-    PushSelf,
+    Duplicate(usize),
     PushInt(i64),
     PushFloat(f64),
     PushString(String),
@@ -136,7 +136,7 @@ impl Compiler {
             } => {
                 let Some(val) = value else { return Ok(()) };
 
-                self.on_init(Instruction::PushSelf);
+                self.on_init(Instruction::Duplicate(0));
                 self.on_init(Instruction::PushString(identifier));
 
                 let mut expression_instructions = Vec::new();

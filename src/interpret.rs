@@ -76,10 +76,12 @@ impl Interpreter {
         let mut pc = 0;
         let mut stack = Vec::new();
 
+        stack.push(this.clone());
+
         while pc < bytecode.len() {
             match &class.bytecode[pc] {
-                Instruction::PushSelf => {
-                    stack.push(this.clone());
+                Instruction::Duplicate(index) => {
+                    stack.push(stack[*index].clone());
                 }
                 Instruction::PushInt(i) => {
                     stack.push(Value::Integer(*i));
