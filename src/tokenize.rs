@@ -559,51 +559,50 @@ impl Tokenizer {
             }
         }
 
-        if is_float {
-            let mut exponent_seen = false;
+        let mut exponent_seen = false;
 
-            while let Some(c) = self.peek_char() {
-                if c.is_digit(10) {
-                    text.push(c);
+        while let Some(c) = self.peek_char() {
+            if c.is_digit(10) {
+                text.push(c);
+                self.next_char();
+            } else if c == '_' {
+                self.next_char();
+            } else if c == 'e' || c == 'E' {
+                text.push(c);
+                self.next_char();
+                is_float = true;
+                exponent_seen = true;
+                break;
+            } else {
+                break;
+            }
+        }
+
+        if exponent_seen {
+            match self.peek_char() {
+                Some('+') => {
+                    text.push('+');
                     self.next_char();
-                } else if c == '_' {
-                    self.next_char();
-                } else if c == 'e' {
-                    text.push(c);
-                    self.next_char();
-                    exponent_seen = true;
-                    break;
-                } else {
-                    break;
                 }
+                Some('-') => {
+                    text.push('-');
+                    self.next_char();
+                }
+                _ => {}
             }
 
-            if exponent_seen {
-                match self.peek_char() {
-                    Some('+') => {
-                        text.push('+');
-                        self.next_char();
-                    }
-                    Some('-') => {
-                        text.push('-');
-                        self.next_char();
-                    }
-                    _ => {}
-                }
-
-                while let Some(c) = self.peek_char() {
-                    if c == '_' {
-                        self.next_char();
-                        continue;
-                    }
-
-                    if !c.is_ascii_digit() {
-                        break;
-                    }
-
-                    text.push(c);
+            while let Some(c) = self.peek_char() {
+                if c == '_' {
                     self.next_char();
+                    continue;
                 }
+
+                if !c.is_ascii_digit() {
+                    break;
+                }
+
+                text.push(c);
+                self.next_char();
             }
         }
 
