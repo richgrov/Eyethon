@@ -1,7 +1,45 @@
+use std::collections::HashMap;
+
+use interpret::Interpreter;
+
 mod compile;
 mod interpret;
 mod parse;
 mod tokenize;
+
+pub struct Vm {
+    interpreter: Interpreter,
+}
+
+impl Vm {
+    pub fn new() -> Vm {
+        Vm {
+            interpreter: Interpreter::new(),
+        }
+    }
+
+    pub fn run(&mut self, source: &str, fallback_class_name: String) -> Result<(), Error> {
+        let tokens = tokenize::tokenize(source).map_err(|e| Error::SyntaxError(e))?;
+        let ast = parse::parse(tokens).map_err(|e| Error::ParseError(e))?;
+        let class = compile::compile(ast, HashMap::new()).map_err(|e| Error::CompileError(e))?;
+
+        self.interpreter
+            .register_class(class, fallback_class_name.clone());
+
+        self.interpreter
+            .run(&fallback_class_name)
+            .map_err(|e| Error::RuntimeError(e))?;
+
+        Ok(())
+    }
+}
+
+pub enum Error {
+    SyntaxError(tokenize::TokenizerError),
+    ParseError(parse::ParseError),
+    CompileError(compile::CompileError),
+    RuntimeError(interpret::RuntimeError),
+}
 
 #[cfg(test)]
 mod tests {
