@@ -934,7 +934,35 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.add_sub()
+        self.comparison()
+    }
+
+    fn comparison(&mut self) -> Result<Expression, ParseError> {
+        let mut expression = self.add_sub()?;
+
+        loop {
+            let Some(operator) = self.peek_tok() else {
+                break;
+            };
+
+            match BinaryOperator::try_from(operator.ty.clone()) {
+                Ok(op) => {
+                    self.consume_token();
+                    expression = Expression {
+                        line: expression.line,
+                        column: expression.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expression),
+                            rhs: Box::new(self.add_sub()?),
+                            operator: op,
+                        },
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        Ok(expression)
     }
 
     fn add_sub(&mut self) -> Result<Expression, ParseError> {
@@ -965,7 +993,7 @@ impl Parser {
     }
 
     fn mul_div(&mut self) -> Result<Expression, ParseError> {
-        let mut expr = self.comparison()?;
+        let mut expr = self.negate()?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -979,7 +1007,7 @@ impl Parser {
                         column: expr.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expr),
-                            rhs: Box::new(self.comparison()?),
+                            rhs: Box::new(self.negate()?),
                             operator: op,
                         },
                     };
@@ -989,34 +1017,6 @@ impl Parser {
         }
 
         Ok(expr)
-    }
-
-    fn comparison(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.negate()?;
-
-        loop {
-            let Some(operator) = self.peek_tok() else {
-                break;
-            };
-
-            match BinaryOperator::try_from(operator.ty.clone()) {
-                Ok(op) => {
-                    self.consume_token();
-                    expression = Expression {
-                        line: expression.line,
-                        column: expression.column,
-                        ty: ExpressionType::Binary {
-                            lhs: Box::new(expression),
-                            rhs: Box::new(self.comparison()?),
-                            operator: op,
-                        },
-                    }
-                }
-                Err(_) => break,
-            }
-        }
-
-        Ok(expression)
     }
 
     fn negate(&mut self) -> Result<Expression, ParseError> {
