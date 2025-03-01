@@ -423,6 +423,8 @@ impl Tokenizer {
                     let Some('\n') = self.next_char() else {
                         break Err(self.mk_error(TokenizerErrorType::InvalidLogicalLine));
                     };
+
+                    self.skip_line_whitespace();
                 }
 
                 other if other.is_alphabetic() || other == '_' => break Ok(self.identifier(other)),
