@@ -32,6 +32,8 @@ pub enum TokenType {
     Extends,
     Is,
     In,
+    And,
+    Or,
     As,
     Self_,
     Super,
@@ -74,6 +76,8 @@ pub enum TokenType {
     DoubleLChevronEq,
     DoubleRChevron,
     DoubleRChevronEq,
+    DoubleAmpersand,
+    DoublePipe,
     Equal,
     EqualEqual,
     ColonEqual,
@@ -120,6 +124,8 @@ impl TokenType {
             Extends => "extends",
             Is => "is",
             In => "in",
+            And => "and",
+            Or => "or",
             As => "as",
             Self_ => "self",
             Super => "super",
@@ -161,6 +167,8 @@ impl TokenType {
             DoubleLChevronEq => "<<=",
             DoubleRChevron => ">>",
             DoubleRChevronEq => ">>=",
+            DoubleAmpersand => "&&",
+            DoublePipe => "||",
             Equal => "=",
             EqualEqual => "==",
             ColonEqual => ":=",
@@ -312,21 +320,29 @@ impl Tokenizer {
                     break Ok(self.mk_token(TokenType::Bang));
                 }
 
-                '&' => {
-                    if self.peek_char() == Some('=') {
+                '&' => match self.peek_char() {
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::AmpersandEq));
                     }
-                    break Ok(self.mk_token(TokenType::Ampersand));
-                }
+                    Some('&') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::DoubleAmpersand));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::Ampersand)),
+                },
 
-                '|' => {
-                    if self.peek_char() == Some('=') {
+                '|' => match self.peek_char() {
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::PipeEq));
                     }
-                    break Ok(self.mk_token(TokenType::Pipe));
-                }
+                    Some('|') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::DoublePipe));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::Pipe)),
+                },
 
                 '^' => {
                     if self.peek_char() == Some('=') {
@@ -505,6 +521,8 @@ impl Tokenizer {
             "extends" => TokenType::Extends,
             "is" => TokenType::Is,
             "in" => TokenType::In,
+            "and" => TokenType::And,
+            "or" => TokenType::Or,
             "as" => TokenType::As,
             "self" => TokenType::Self_,
             "super" => TokenType::Super,

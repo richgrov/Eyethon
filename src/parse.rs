@@ -169,6 +169,8 @@ pub enum BinaryOperator {
     LessThanOrEqual,
     Equal,
     NotEqual,
+    And,
+    Or,
 }
 
 impl TryFrom<TokenType> for BinaryOperator {
@@ -187,6 +189,8 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::RChevronEq => Ok(BinaryOperator::LessThanOrEqual),
             TokenType::EqualEqual => Ok(BinaryOperator::Equal),
             TokenType::BangEq => Ok(BinaryOperator::NotEqual),
+            TokenType::And | TokenType::DoubleAmpersand => Ok(BinaryOperator::And),
+            TokenType::Or | TokenType::DoublePipe => Ok(BinaryOperator::Or),
             _ => Err(()),
         }
     }
@@ -934,7 +938,37 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.comparison()
+        self.logical()
+    }
+
+    fn logical(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.comparison()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Or
+                | TokenType::DoublePipe
+                | TokenType::And
+                | TokenType::DoubleAmpersand => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.comparison()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn comparison(&mut self) -> Result<Expression, ParseError> {
