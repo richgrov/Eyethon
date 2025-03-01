@@ -399,9 +399,7 @@ impl Tokenizer {
 
                 '"' | '\'' => break self.string(c),
 
-                other if other.is_ascii_alphabetic() || other == '_' => {
-                    break Ok(self.identifier(other))
-                }
+                other if other.is_alphabetic() || other == '_' => break Ok(self.identifier(other)),
 
                 other if other.is_ascii_digit() => break Ok(self.number(other)),
 
