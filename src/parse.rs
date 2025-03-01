@@ -214,6 +214,10 @@ pub enum ParseError {
         line: usize,
         column: usize,
     },
+    ExpectedEnd {
+        line: usize,
+        column: usize,
+    },
     InvalidExpression(Token),
 }
 
@@ -253,6 +257,9 @@ impl fmt::Display for ParseError {
                     "{}:{}: expected indentation of {} but found {}",
                     line, column, expected, actual
                 )
+            }
+            ParseError::ExpectedEnd { line, column } => {
+                write!(f, "{}:{}: expected end of line or semicolon", line, column)
             }
             ParseError::InvalidExpression(tok) => {
                 write!(
@@ -914,6 +921,7 @@ impl Parser {
             .peek_tok()
             .and_then(|tok| ReassignmentOperator::try_from(tok.ty.clone()).ok())
         else {
+            self.expect_end()?;
             return Ok(Statement {
                 line: key.line,
                 column: key.column,
@@ -1265,6 +1273,23 @@ impl Parser {
             other => Err(ParseError::UnexpectedToken {
                 expected: vec![TokenType::Identifier("".to_owned())],
                 actual: other.clone(),
+            }),
+        }
+    }
+
+    fn expect_end(&mut self) -> Result<(), ParseError> {
+        match self.consume_token() {
+            None => Ok(()),
+            Some(Token {
+                ty: TokenType::Eol, ..
+            }) => Ok(()),
+            Some(Token {
+                ty: TokenType::Semicolon,
+                ..
+            }) => Ok(()),
+            Some(other) => Err(ParseError::ExpectedEnd {
+                line: other.line,
+                column: other.column,
             }),
         }
     }
