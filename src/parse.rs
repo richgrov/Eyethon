@@ -215,8 +215,7 @@ pub enum ParseError {
         column: usize,
     },
     ExpectedEnd {
-        line: usize,
-        column: usize,
+        actual: Token,
     },
     InvalidExpression(Token),
 }
@@ -258,8 +257,14 @@ impl fmt::Display for ParseError {
                     line, column, expected, actual
                 )
             }
-            ParseError::ExpectedEnd { line, column } => {
-                write!(f, "{}:{}: expected end of line or semicolon", line, column)
+            ParseError::ExpectedEnd { actual } => {
+                write!(
+                    f,
+                    "{}:{}: expected end of line or semicolon, found '{}'",
+                    actual.line,
+                    actual.column,
+                    actual.ty.generic_name()
+                )
             }
             ParseError::InvalidExpression(tok) => {
                 write!(
@@ -1286,8 +1291,7 @@ impl Parser {
                 ..
             }) => Ok(()),
             Some(other) => Err(ParseError::ExpectedEnd {
-                line: other.line,
-                column: other.column,
+                actual: other.clone(),
             }),
         }
     }
