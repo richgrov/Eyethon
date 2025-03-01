@@ -1178,10 +1178,14 @@ impl Parser {
                     ty: TokenType::Equal,
                     ..
                 } => match key_token.ty {
+                    TokenType::String(key) => key,
                     TokenType::Identifier(key) => key,
                     _ => {
                         return Err(ParseError::UnexpectedToken {
-                            expected: vec![TokenType::Identifier("".to_owned())],
+                            expected: vec![
+                                TokenType::String("".to_owned()),
+                                TokenType::Identifier("".to_owned()),
+                            ],
                             actual: key_token.clone(),
                         })
                     }
