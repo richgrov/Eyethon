@@ -21,11 +21,10 @@ impl Vm {
     pub fn run(&mut self, source: &str, fallback_class_name: String) -> Result<(), Error> {
         let tokens = tokenize::tokenize(source).map_err(|e| Error::SyntaxError(e))?;
         let ast = parse::parse(tokens).map_err(|e| Error::ParseError(e))?;
-        let class = compile::compile(ast, HashMap::new()).map_err(|e| Error::CompileError(e))?;
+        let class = compile::compile(ast, HashMap::new(), fallback_class_name.clone())
+            .map_err(|e| Error::CompileError(e))?;
 
-        self.interpreter
-            .register_class(class, fallback_class_name.clone())
-            .unwrap();
+        self.interpreter.register_class(class).unwrap();
 
         self.interpreter
             .new_instance(&fallback_class_name)
@@ -96,13 +95,34 @@ mod tests {
             }
         };
 
-        let _ = match parse::parse(tokens) {
+        let ast = match parse::parse(tokens) {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("parse {} failed: {}", test.name, e);
                 return false;
             }
         };
+
+        let class = match compile::compile(ast, HashMap::new(), "Test".to_owned()) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("compile {} failed: {}", test.name, e);
+                return false;
+            }
+        };
+
+        let class_name = class.name.clone();
+
+        let mut interpreter = interpret::Interpreter::new();
+        if let Err(e) = interpreter.register_class(class) {
+            eprintln!("register class failed: {}", e);
+            return false;
+        }
+
+        if let Err(e) = interpreter.new_instance(&class_name) {
+            eprintln!("instantiation failed: {}", e);
+            return false;
+        }
 
         true
     }
@@ -122,36 +142,5 @@ mod tests {
         if failed > 0 || total == 0 {
             panic!("{}/{} cases failed", failed, total);
         }
-    }
-
-    #[test]
-    fn main() {
-        let file = "<internal>";
-        let script = std::fs::read_to_string("test.gd").unwrap();
-
-        let tokens = match tokenize::tokenize(&script) {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("error: {}: {}", file, e);
-                std::process::exit(1);
-            }
-        };
-
-        let statements = parse::parse(tokens).unwrap();
-
-        let mut annotation_handlers: HashMap<String, Box<dyn Fn()>> = HashMap::new();
-        annotation_handlers.insert(
-            "icon".to_owned(),
-            Box::new(|| {
-                println!("icon annotation");
-            }),
-        );
-
-        let bytecode = compile::compile(statements, annotation_handlers).unwrap();
-        println!("{:?}", bytecode);
-
-        let mut vm = interpret::Interpreter::new();
-        vm.register_class(bytecode, "main".to_owned()).unwrap();
-        vm.new_instance("main").unwrap();
     }
 }

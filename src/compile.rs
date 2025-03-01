@@ -5,7 +5,7 @@ use crate::parse::{Expression, ExpressionType, Statement, StatementType, Variabl
 
 #[derive(Debug)]
 pub struct ClassBytecode {
-    pub name: Option<String>,
+    pub name: String,
     pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
     pub functions: HashMap<String, usize>,
@@ -70,20 +70,27 @@ struct VariableInfo {
 struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
+    fallback_class_name: String,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
     init_instructions: Vec<Instruction>,
+    function_scope_stack: Vec<()>,
 }
 
 impl Compiler {
-    pub fn new(annotation_handlers: HashMap<String, AnnotationHandler>) -> Compiler {
+    pub fn new(
+        annotation_handlers: HashMap<String, AnnotationHandler>,
+        fallback_class_name: String,
+    ) -> Compiler {
         Compiler {
             annotation_handlers,
+            fallback_class_name,
 
             class_name: None,
             extends: None,
             non_class_name_statement_seen: false,
             init_instructions: Vec::new(),
+            function_scope_stack: Vec::with_capacity(4),
         }
     }
 
@@ -96,7 +103,7 @@ impl Compiler {
         }
 
         Ok(ClassBytecode {
-            name: self.class_name,
+            name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
             bytecode: self.init_instructions,
             functions: HashMap::new(),
@@ -165,6 +172,19 @@ impl Compiler {
 
                 self.on_init(Instruction::Store);
             }
+            StatementType::Function {
+                name: _,
+                args: _,
+                statements,
+            } => {
+                self.function_scope_stack.push(());
+
+                for statement in statements {
+                    self.handle_statement(statement)?;
+                }
+
+                self.function_scope_stack.pop();
+            }
             other => {
                 return Err(CompileError::NotImplemented {
                     line: statement.line,
@@ -211,6 +231,7 @@ impl Compiler {
 pub fn compile(
     statements: Vec<Statement>,
     annotation_handlers: HashMap<String, AnnotationHandler>,
+    fallback_class_name: String,
 ) -> Result<ClassBytecode, CompileError> {
-    Compiler::new(annotation_handlers).emit_class_bytecode(statements)
+    Compiler::new(annotation_handlers, fallback_class_name).emit_class_bytecode(statements)
 }

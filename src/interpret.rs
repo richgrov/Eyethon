@@ -88,17 +88,12 @@ impl Interpreter {
         }
     }
 
-    pub fn register_class(
-        &mut self,
-        class: ClassBytecode,
-        fallback_name: String,
-    ) -> Result<(), RuntimeError> {
-        let class_name = class.name.as_ref().unwrap_or_else(|| &fallback_name);
+    pub fn register_class(&mut self, class: ClassBytecode) -> Result<(), RuntimeError> {
         self.class_objects.insert(
-            class_name.to_owned(),
+            class.name.clone(),
             Value::Object(Rc::new(RefCell::new(HashMap::new()))),
         );
-        self.classes.insert(class_name.to_owned(), class);
+        self.classes.insert(class.name.clone(), class);
 
         Ok(())
     }
