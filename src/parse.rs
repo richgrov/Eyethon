@@ -289,6 +289,7 @@ struct Parser {
     tokens: Vec<Token>,
     read_index: usize,
     indent_stack: Vec<usize>,
+    indent_aware_stack: Vec<bool>,
 }
 
 impl Parser {
@@ -307,6 +308,7 @@ impl Parser {
             tokens: without_comment,
             read_index: 0,
             indent_stack: Vec::new(),
+            indent_aware_stack: Vec::new(),
         }
     }
 
@@ -1152,6 +1154,7 @@ impl Parser {
 
     fn parse_dict_literal(&mut self) -> Result<Vec<(String, Expression)>, ParseError> {
         let mut kv = Vec::new();
+        self.indent_aware_stack.push(false);
 
         loop {
             if self.consume_if(TokenType::RBrace) {
@@ -1211,7 +1214,9 @@ impl Parser {
                 }
             };
 
+            self.indent_aware_stack.push(true);
             let value = self.expression()?;
+            self.indent_aware_stack.pop();
             kv.push((key, value));
 
             if !self.consume_if(TokenType::Comma) {
@@ -1220,6 +1225,7 @@ impl Parser {
             }
         }
 
+        self.indent_aware_stack.pop();
         Ok(kv)
     }
 
@@ -1242,11 +1248,29 @@ impl Parser {
         Ok(args)
     }
 
-    fn peek_tok(&self) -> Option<&Token> {
+    fn peek_tok(&mut self) -> Option<&Token> {
         self.peek_n(1)
     }
 
-    fn peek_n(&self, n: usize) -> Option<&Token> {
+    fn peek_n(&mut self, n: usize) -> Option<&Token> {
+        let indent_aware = self.indent_aware_stack.last().copied().unwrap_or(true);
+        if !indent_aware {
+            loop {
+                match self.tokens.get(self.read_index) {
+                    Some(Token {
+                        ty: TokenType::Eol, ..
+                    })
+                    | Some(Token {
+                        ty: TokenType::Indent { .. },
+                        ..
+                    }) => {
+                        self.read_index += 1;
+                    }
+                    _ => break,
+                }
+            }
+        }
+
         self.tokens.get(self.read_index + n - 1)
     }
 
@@ -1342,6 +1366,14 @@ impl Parser {
                     self.consume_token();
                 }
                 Some(_) | None => return Some(indent_info),
+            }
+        }
+    }
+
+    fn consume_whitespace(&mut self) {
+        if let Some(indent_info) = self.consume_until_nonempty_line() {
+            if indent_info.level > 0 {
+                self.consume_token();
             }
         }
     }
