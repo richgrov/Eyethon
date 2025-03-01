@@ -72,6 +72,14 @@ pub enum RuntimeError {
     NotSettable,
 }
 
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RuntimeError::NotSettable => write!(f, "not settable"),
+        }
+    }
+}
+
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {

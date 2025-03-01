@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
@@ -37,6 +38,25 @@ pub enum CompileError {
         column: usize,
         message: String,
     },
+}
+
+impl fmt::Display for CompileError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            CompileError::InvalidAnnotation { name } => write!(f, "unknown annotation: {}", name),
+            CompileError::InvalidClassName { line, column } => {
+                write!(f, "{}:{}: class_name not allowed here", line, column)
+            }
+            CompileError::InvalidExtends { line, column } => {
+                write!(f, "{}:{}: extends not allowed here", line, column)
+            }
+            CompileError::NotImplemented {
+                line,
+                column,
+                message,
+            } => write!(f, "{}:{}: not implemented: {}", line, column, message),
+        }
+    }
 }
 
 pub type AnnotationHandler = Box<dyn Fn()>;
