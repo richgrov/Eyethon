@@ -59,27 +59,39 @@ impl Interpreter {
         }
     }
 
-    pub fn register_class(&mut self, class: ClassBytecode, fallback_name: String) {
+    pub fn register_class(
+        &mut self,
+        class: ClassBytecode,
+        fallback_name: String,
+    ) -> Result<(), RuntimeError> {
         let class_name = class.name.as_ref().unwrap_or_else(|| &fallback_name);
         self.class_objects.insert(
             class_name.to_owned(),
             Value::Object(Rc::new(RefCell::new(HashMap::new()))),
         );
         self.classes.insert(class_name.to_owned(), class);
+
+        Ok(())
     }
 
-    pub fn run(&mut self, class_name: &str) -> Result<(), RuntimeError> {
-        let class = self.classes.get(class_name).unwrap();
-        let bytecode = &class.bytecode;
-        let this = self.class_objects.get(class_name).unwrap();
+    pub fn new_instance(&mut self, class_name: &str) -> Result<(), RuntimeError> {
+        let this = Value::Object(Rc::new(RefCell::new(HashMap::new())));
+        self.call_function(class_name, &vec![this.clone()])?;
 
+        println!("{:?}", this);
+
+        Ok(())
+    }
+
+    fn call_function(&mut self, class_name: &str, args: &[Value]) -> Result<(), RuntimeError> {
         let mut pc = 0;
         let mut stack = Vec::new();
+        stack.extend_from_slice(args);
 
-        stack.push(this.clone());
+        let instructions = &self.classes.get(class_name).unwrap().bytecode;
 
-        while pc < bytecode.len() {
-            match &class.bytecode[pc] {
+        while pc < instructions.len() {
+            match &instructions[pc] {
                 Instruction::Duplicate(index) => {
                     stack.push(stack[*index].clone());
                 }
@@ -108,7 +120,6 @@ impl Interpreter {
             pc += 1;
         }
 
-        println!("{:?}", this);
         Ok(())
     }
 }

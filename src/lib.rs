@@ -24,10 +24,11 @@ impl Vm {
         let class = compile::compile(ast, HashMap::new()).map_err(|e| Error::CompileError(e))?;
 
         self.interpreter
-            .register_class(class, fallback_class_name.clone());
+            .register_class(class, fallback_class_name.clone())
+            .unwrap();
 
         self.interpreter
-            .run(&fallback_class_name)
+            .new_instance(&fallback_class_name)
             .map_err(|e| Error::RuntimeError(e))?;
 
         Ok(())
@@ -150,7 +151,7 @@ mod tests {
         println!("{:?}", bytecode);
 
         let mut vm = interpret::Interpreter::new();
-        vm.register_class(bytecode, "main".to_owned());
-        vm.run("main").unwrap();
+        vm.register_class(bytecode, "main".to_owned()).unwrap();
+        vm.new_instance("main").unwrap();
     }
 }
