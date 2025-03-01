@@ -614,6 +614,13 @@ impl Parser {
 
         if self.consume_if(TokenType::Colon) {
             let ty = self.expect_identifier()?;
+
+            let value = if self.consume_if(TokenType::Equal) {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+
             self.expect(TokenType::Eol)?;
 
             return Ok(Statement {
@@ -621,7 +628,7 @@ impl Parser {
                     konst,
                     identifier,
                     ty: VariableType::Static(ty),
-                    value: None,
+                    value,
                 },
                 line: first_tok.line,
                 column: first_tok.column,
