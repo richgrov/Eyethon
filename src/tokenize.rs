@@ -217,6 +217,7 @@ pub enum TokenizerErrorType {
     Unexpected { character: char },
     MixedIndent,
     UnterminatedString { delim: char },
+    InvalidLogicalLine,
 }
 
 impl fmt::Display for TokenizerError {
@@ -226,6 +227,9 @@ impl fmt::Display for TokenizerError {
             TokenizerErrorType::MixedIndent => format!("mixed indentation"),
             TokenizerErrorType::UnterminatedString { delim } => {
                 format!("string not terminated with {}", delim)
+            }
+            TokenizerErrorType::InvalidLogicalLine => {
+                format!("expected end of line after '\\'")
             }
         };
 
@@ -398,6 +402,12 @@ impl Tokenizer {
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
                 '"' | '\'' => break self.string(c),
+
+                '\\' => {
+                    let Some('\n') = self.next_char() else {
+                        break Err(self.mk_error(TokenizerErrorType::InvalidLogicalLine));
+                    };
+                }
 
                 other if other.is_alphabetic() || other == '_' => break Ok(self.identifier(other)),
 
