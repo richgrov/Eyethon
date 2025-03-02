@@ -547,8 +547,11 @@ impl Parser {
         };
 
         self.expect(TokenType::Colon)?;
-        self.expect(TokenType::Eol)?;
-        let statements = self.parse_block_scope()?;
+        let statements = if self.consume_if(TokenType::Eol) {
+            self.parse_block_scope()?
+        } else {
+            self.parse_single_line_scope()?
+        };
 
         Ok(Statement {
             ty: StatementType::Class {
