@@ -81,7 +81,10 @@ pub enum StatementType {
         operator: ReassignmentOperator,
         value: Expression,
     },
-    ClassName(String),
+    ClassName {
+        class_name: String,
+        extends: Option<String>,
+    },
     Extends(String),
     If {
         condition: Expression,
@@ -491,29 +494,19 @@ impl Parser {
     }
 
     fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
+        let class_name = self.expect_identifier()?;
 
-        match self.peek_tok() {
-            Some(tok) => match tok {
-                Token {
-                    ty: TokenType::Eol, ..
-                }
-                | Token {
-                    ty: TokenType::Extends,
-                    ..
-                } => {}
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::Eol, TokenType::Extends],
-                        actual: other.clone(),
-                    })
-                }
-            },
-            None => {}
-        }
+        let extends = if self.consume_if(TokenType::Extends) {
+            Some(self.expect_identifier()?)
+        } else {
+            None
+        };
 
         Ok(Statement {
-            ty: StatementType::ClassName(name),
+            ty: StatementType::ClassName {
+                class_name,
+                extends,
+            },
             line: first_tok.line,
             column: first_tok.column,
         })

@@ -121,7 +121,10 @@ impl Compiler {
                 handler();
                 self.handle_statement(*target)?;
             }
-            StatementType::ClassName(name) => {
+            StatementType::ClassName {
+                class_name,
+                extends,
+            } => {
                 if self.non_class_name_statement_seen {
                     return Err(CompileError::InvalidClassName {
                         line: statement.line,
@@ -136,7 +139,18 @@ impl Compiler {
                     });
                 }
 
-                let _ = self.class_name.insert(name);
+                let _ = self.class_name.insert(class_name);
+
+                if let Some(ext) = extends {
+                    if let Some(_) = self.extends {
+                        return Err(CompileError::InvalidClassName {
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+
+                    let _ = self.extends.insert(ext);
+                }
             }
             StatementType::Extends(name) => {
                 if self.non_class_name_statement_seen {
