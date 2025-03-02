@@ -225,6 +225,10 @@ pub enum ParseError {
     ExpectedEnd {
         actual: Token,
     },
+    MultilineAnnotationNotAllowed {
+        line: usize,
+        column: usize,
+    },
     InvalidExpression(Token),
 }
 
@@ -272,6 +276,13 @@ impl fmt::Display for ParseError {
                     actual.line,
                     actual.column,
                     actual.ty.generic_name()
+                )
+            }
+            ParseError::MultilineAnnotationNotAllowed { line, column } => {
+                write!(
+                    f,
+                    "{}:{}: multiline annotation not allowed here",
+                    line, column
                 )
             }
             ParseError::InvalidExpression(tok) => {
@@ -341,10 +352,10 @@ impl Parser {
             }));
         }
 
-        Some(self.annotation())
+        Some(self.annotation(true))
     }
 
-    fn annotation(&mut self) -> Result<Statement, ParseError> {
+    fn annotation(&mut self, allow_multiline: bool) -> Result<Statement, ParseError> {
         let Some(first_tok) = self.peek_tok().cloned() else {
             return Err(ParseError::UnexpectedEof);
         };
@@ -392,7 +403,6 @@ impl Parser {
             TokenType::Return => {
                 self.consume_token();
                 let expr = self.expression()?;
-                self.expect(TokenType::Eol)?;
                 return Ok(Statement {
                     ty: StatementType::Return(expr),
                     line: first_tok.line,
@@ -427,7 +437,22 @@ impl Parser {
             }
         }
 
-        if self.consume_if(TokenType::Eol) {
+        let eol = self.peek_tok();
+        if let Some(Token {
+            ty: TokenType::Eol,
+            line,
+            column,
+        }) = eol
+        {
+            if !allow_multiline {
+                return Err(ParseError::MultilineAnnotationNotAllowed {
+                    line: *line,
+                    column: *column,
+                });
+            }
+
+            self.consume_token();
+
             let indent_info = self
                 .consume_until_nonempty_line()
                 .ok_or(ParseError::UnexpectedEof)?;
@@ -444,7 +469,7 @@ impl Parser {
             }
         }
 
-        let target = self.annotation()?;
+        let target = self.annotation(allow_multiline)?;
 
         Ok(Statement {
             ty: StatementType::Annotation {
@@ -538,7 +563,6 @@ impl Parser {
 
     fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
-        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Extends(name),
@@ -650,8 +674,6 @@ impl Parser {
             (VariableType::Dynamic, value)
         };
 
-        self.expect_end()?;
-
         Ok(Statement {
             ty: StatementType::Var {
                 konst,
@@ -720,8 +742,6 @@ impl Parser {
                 }
             }
         }
-
-        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             ty: StatementType::Enum { name, values },
@@ -896,10 +916,29 @@ impl Parser {
 
             self.consume_token();
 
-            statements.push(self.annotation()?);
+            statements.push(self.annotation(true)?);
+
+            while self.consume_if(TokenType::Semicolon) {
+                statements.push(self.annotation(true)?);
+            }
         }
 
         self.indent_stack.pop();
+
+        Ok(statements)
+    }
+
+    fn parse_single_line_scope(&mut self) -> Result<Vec<Statement>, ParseError> {
+        let mut statements = Vec::new();
+
+        loop {
+            statements.push(self.annotation(false)?);
+
+            if !self.consume_if(TokenType::Semicolon) {
+                self.expect_end()?;
+                break;
+            }
+        }
 
         Ok(statements)
     }
@@ -911,7 +950,6 @@ impl Parser {
             .peek_tok()
             .and_then(|tok| ReassignmentOperator::try_from(tok.ty.clone()).ok())
         else {
-            self.expect_end()?;
             return Ok(Statement {
                 line: key.line,
                 column: key.column,
@@ -921,7 +959,6 @@ impl Parser {
 
         self.consume_token();
         let value = self.expression()?;
-        self.expect(TokenType::Eol)?;
 
         Ok(Statement {
             line: key.line,
@@ -1163,12 +1200,17 @@ impl Parser {
         }
 
         self.expect(TokenType::Colon)?;
-        self.expect(TokenType::Eol)?;
+
+        let statements = if self.consume_if(TokenType::Eol) {
+            self.parse_block_scope()?
+        } else {
+            self.parse_single_line_scope()?
+        };
 
         Ok(ExpressionType::Function {
             name,
             args,
-            statements: self.parse_block_scope()?,
+            statements,
         })
     }
 
@@ -1364,11 +1406,8 @@ impl Parser {
             Some(Token {
                 ty: TokenType::Eol, ..
             }) => Ok(()),
-            Some(Token {
-                ty: TokenType::Semicolon,
-                ..
-            }) => Ok(()),
-            Some(other) => Err(ParseError::ExpectedEnd {
+            Some(other) => Err(ParseError::UnexpectedToken {
+                expected: vec![TokenType::Eol],
                 actual: other.clone(),
             }),
         }
