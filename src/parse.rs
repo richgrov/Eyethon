@@ -424,20 +424,21 @@ impl Parser {
             }
         }
 
-        self.expect(TokenType::Eol)?;
-        let indent_info = self
-            .consume_until_nonempty_line()
-            .ok_or(ParseError::UnexpectedEof)?;
+        if self.consume_if(TokenType::Eol) {
+            let indent_info = self
+                .consume_until_nonempty_line()
+                .ok_or(ParseError::UnexpectedEof)?;
 
-        let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
+            let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
 
-        if indent_info.level != expected_indent {
-            return Err(ParseError::InvalidIndent {
-                expected: expected_indent,
-                actual: indent_info.level,
-                line: indent_info.line,
-                column: indent_info.column,
-            });
+            if indent_info.level != expected_indent {
+                return Err(ParseError::InvalidIndent {
+                    expected: expected_indent,
+                    actual: indent_info.level,
+                    line: indent_info.line,
+                    column: indent_info.column,
+                });
+            }
         }
 
         let target = self.annotation()?;
