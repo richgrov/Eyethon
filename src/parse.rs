@@ -467,6 +467,8 @@ impl Parser {
                     column: indent_info.column,
                 });
             }
+
+            self.consume_token();
         }
 
         let target = self.annotation(allow_multiline)?;
