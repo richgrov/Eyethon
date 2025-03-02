@@ -417,7 +417,10 @@ impl Parser {
                 }
 
                 args.push(self.expression()?);
-                self.consume_if(TokenType::Comma);
+                if !self.consume_if(TokenType::Comma) {
+                    self.expect(TokenType::RParen)?;
+                    break;
+                }
             }
         }
 
