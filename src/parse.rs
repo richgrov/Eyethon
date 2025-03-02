@@ -919,6 +919,16 @@ impl Parser {
             statements.push(self.annotation(true)?);
 
             while self.consume_if(TokenType::Semicolon) {
+                match self.peek_tok() {
+                    Some(Token {
+                        ty: TokenType::Eol, ..
+                    })
+                    | None => {
+                        self.consume_token();
+                        break;
+                    }
+                    _ => {}
+                }
                 statements.push(self.annotation(true)?);
             }
         }
@@ -937,6 +947,17 @@ impl Parser {
             if !self.consume_if(TokenType::Semicolon) {
                 self.expect_end()?;
                 break;
+            }
+
+            match self.peek_tok() {
+                Some(Token {
+                    ty: TokenType::Eol, ..
+                })
+                | None => {
+                    self.consume_token();
+                    break;
+                }
+                _ => {}
             }
         }
 
