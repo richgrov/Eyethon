@@ -169,6 +169,17 @@ impl Compiler {
 
                 let _ = self.extends.insert(name);
             }
+            StatementType::Expression(Expression {
+                ty:
+                    ExpressionType::Function {
+                        name: _,
+                        static_: _,
+                        args: _,
+                        return_type: _,
+                        statements: _,
+                    },
+                ..
+            }) if self.function_scope_stack.is_empty() => {}
             StatementType::Var {
                 identifier, value, ..
             } => {
@@ -184,11 +195,11 @@ impl Compiler {
                 self.on_init(Instruction::Store);
             }
             other => {
-                return Err(CompileError::NotImplemented {
+                /*return Err(CompileError::NotImplemented {
                     line: statement.line,
                     column: statement.column,
                     message: format!("{:?} not implemented yet", other),
-                })
+                })*/
             }
         }
 

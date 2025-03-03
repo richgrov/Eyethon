@@ -102,8 +102,6 @@ impl Interpreter {
         let this = Value::Object(Rc::new(RefCell::new(HashMap::new())));
         self.call_function(class_name, &vec![this.clone()])?;
 
-        println!("{}", this);
-
         Ok(())
     }
 
