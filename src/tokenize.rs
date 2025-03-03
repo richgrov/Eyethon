@@ -94,6 +94,7 @@ pub enum TokenType {
     Dot,
     DotDot,
     Tilde,
+    Arrow,
     Eol,
 }
 
@@ -185,6 +186,7 @@ impl TokenType {
             Dot => ".",
             DotDot => "..",
             Tilde => "~",
+            Arrow => "->",
             Eol => "end of line",
         }
     }
@@ -279,6 +281,10 @@ impl Tokenizer {
                 }
 
                 '-' => match self.peek_char() {
+                    Some('>') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::Arrow));
+                    }
                     Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::MinusEq));

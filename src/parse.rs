@@ -130,6 +130,13 @@ pub struct Expression {
 }
 
 #[derive(Debug)]
+pub enum FunctionReturnType {
+    Dynamic,
+    Void,
+    Static(String),
+}
+
+#[derive(Debug)]
 pub enum ExpressionType {
     Identifier(String),
     String(String),
@@ -147,7 +154,8 @@ pub enum ExpressionType {
     },
     Function {
         name: String,
-        args: Vec<String>,
+        args: Vec<(String, Option<String>)>,
+        return_type: FunctionReturnType,
         statements: Vec<Statement>,
     },
     FunctionCall(FunctionCallExpression),
@@ -1217,13 +1225,31 @@ impl Parser {
                 break;
             }
 
-            args.push(self.expect_identifier()?);
+            let name = self.expect_identifier()?;
+
+            let ty = if self.consume_if(TokenType::Colon) {
+                Some(self.expect_identifier()?)
+            } else {
+                None
+            };
+
+            args.push((name, ty));
 
             if !self.consume_if(TokenType::Comma) {
                 self.expect(TokenType::RParen)?;
                 break;
             }
         }
+
+        let return_type = if self.consume_if(TokenType::Arrow) {
+            if self.consume_if(TokenType::Void) {
+                FunctionReturnType::Void
+            } else {
+                FunctionReturnType::Static(self.expect_identifier()?)
+            }
+        } else {
+            FunctionReturnType::Dynamic
+        };
 
         self.expect(TokenType::Colon)?;
 
@@ -1236,6 +1262,7 @@ impl Parser {
         Ok(ExpressionType::Function {
             name,
             args,
+            return_type,
             statements,
         })
     }
