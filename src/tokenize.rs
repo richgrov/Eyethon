@@ -82,7 +82,6 @@ pub enum TokenType {
     DoublePipe,
     Equal,
     EqualEqual,
-    ColonEqual,
     Colon,
     At,
     LParen,
@@ -177,7 +176,6 @@ impl TokenType {
             DoublePipe => "||",
             Equal => "=",
             EqualEqual => "==",
-            ColonEqual => ":=",
             Colon => ":",
             At => "@",
             LParen => "(",
@@ -413,13 +411,7 @@ impl Tokenizer {
                     break Ok(self.mk_token(TokenType::Equal));
                 }
 
-                ':' => {
-                    if self.peek_char() == Some('=') {
-                        self.next_char();
-                        break Ok(self.mk_token(TokenType::ColonEqual));
-                    }
-                    break Ok(self.mk_token(TokenType::Colon));
-                }
+                ':' => break Ok(self.mk_token(TokenType::Colon)),
 
                 '(' => break Ok(self.mk_token(TokenType::LParen)),
                 ')' => break Ok(self.mk_token(TokenType::RParen)),

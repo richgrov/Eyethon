@@ -779,18 +779,20 @@ impl Parser {
         let identifier = self.expect_identifier()?;
 
         let (ty, value) = if self.consume_if(TokenType::Colon) {
-            let ty = self.parse_type()?;
-
-            let value = if self.consume_if(TokenType::Equal) {
-                Some(self.expression()?)
+            if self.consume_if(TokenType::Equal) {
+                let value = self.expression()?;
+                (VariableType::Inferred, Some(value))
             } else {
-                None
-            };
+                let ty = self.parse_type()?;
 
-            (VariableType::Static(ty), value)
-        } else if self.consume_if(TokenType::ColonEqual) {
-            let value = self.expression()?;
-            (VariableType::Inferred, Some(value))
+                let value = if self.consume_if(TokenType::Equal) {
+                    Some(self.expression()?)
+                } else {
+                    None
+                };
+
+                (VariableType::Static(ty), value)
+            }
         } else {
             let value = if self.consume_if(TokenType::Equal) {
                 Some(self.expression()?)
