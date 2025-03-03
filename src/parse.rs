@@ -75,7 +75,7 @@ pub enum StatementType {
         name: String,
         parameters: Vec<String>,
     },
-    Return(Expression),
+    Return(Option<Expression>),
     Match {
         expression: Expression,
         arms: Vec<(Vec<Pattern>, Vec<Statement>)>,
@@ -496,7 +496,15 @@ impl Parser {
             }
             TokenType::Return => {
                 self.consume_token();
-                let expr = self.expression()?;
+
+                let expr = match self.peek_tok() {
+                    Some(Token {
+                        ty: TokenType::Eol, ..
+                    })
+                    | None => None,
+                    _ => Some(self.expression()?),
+                };
+
                 return Ok(Statement {
                     ty: StatementType::Return(expr),
                     line: first_tok.line,
