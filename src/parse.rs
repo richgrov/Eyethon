@@ -104,6 +104,7 @@ pub enum StatementType {
     Expression(Expression),
     Var {
         konst: bool,
+        static_: bool,
         identifier: String,
         ty: VariableType,
         value: Option<Expression>,
@@ -154,6 +155,7 @@ pub enum ExpressionType {
     },
     Function {
         name: String,
+        static_: bool,
         args: Vec<(String, Option<String>)>,
         return_type: FunctionReturnType,
         statements: Vec<Statement>,
@@ -405,9 +407,39 @@ impl Parser {
                 self.consume_token();
                 return self.for_statement(first_tok);
             }
+            TokenType::Static => {
+                self.consume_token();
+
+                let next_token = self.peek_tok().cloned().ok_or(ParseError::UnexpectedEof)?;
+                match next_token.ty {
+                    TokenType::Var | TokenType::Const => {
+                        self.consume_token();
+                        return self.var_or_const(next_token, true);
+                    }
+                    TokenType::Func => {
+                        self.consume_token();
+                        let expr = self.parse_func(true)?;
+                        return Ok(Statement {
+                            ty: StatementType::Expression(Expression {
+                                ty: expr,
+                                line: first_tok.line,
+                                column: first_tok.column,
+                            }),
+                            line: first_tok.line,
+                            column: first_tok.column,
+                        });
+                    }
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            expected: vec![TokenType::Var, TokenType::Const, TokenType::Func],
+                            actual: next_token,
+                        });
+                    }
+                }
+            }
             TokenType::Var | TokenType::Const => {
                 self.consume_token();
-                return self.var_or_const(first_tok);
+                return self.var_or_const(first_tok, false);
             }
             TokenType::Enum => {
                 self.consume_token();
@@ -670,7 +702,7 @@ impl Parser {
         })
     }
 
-    fn var_or_const(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+    fn var_or_const(&mut self, first_tok: Token, static_: bool) -> Result<Statement, ParseError> {
         let konst = first_tok.ty == TokenType::Const;
         let identifier = self.expect_identifier()?;
 
@@ -699,6 +731,7 @@ impl Parser {
         Ok(Statement {
             ty: StatementType::Var {
                 konst,
+                static_,
                 identifier,
                 ty,
                 value,
@@ -1251,7 +1284,7 @@ impl Parser {
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
-                TokenType::Func => self.parse_func()?,
+                TokenType::Func => self.parse_func(false)?,
                 TokenType::LParen => {
                     self.indent_aware_stack.push(false);
                     let expr = self.expression()?;
@@ -1270,7 +1303,7 @@ impl Parser {
         })
     }
 
-    fn parse_func(&mut self) -> Result<ExpressionType, ParseError> {
+    fn parse_func(&mut self, static_: bool) -> Result<ExpressionType, ParseError> {
         let name = self.expect_identifier()?;
 
         self.expect(TokenType::LParen)?;
@@ -1318,6 +1351,7 @@ impl Parser {
 
         Ok(ExpressionType::Function {
             name,
+            static_,
             args,
             return_type,
             statements,
