@@ -61,6 +61,9 @@ pub enum Pattern {
 
 #[derive(Debug)]
 pub enum StatementType {
+    Assert {
+        condition: Expression,
+    },
     Annotation {
         name: String,
         args: Vec<Expression>,
@@ -165,6 +168,7 @@ pub enum ExpressionType {
     Float(f64),
     Array(Vec<Expression>),
     Super,
+    Preload(String),
     Parenthesis(Box<Expression>),
     Dictionary {
         kv_pairs: Vec<(String, Expression)>,
@@ -424,6 +428,10 @@ impl Parser {
             TokenType::At => {
                 self.consume_token();
             }
+            TokenType::Assert => {
+                self.consume_token();
+                return self.assert_statement(first_tok);
+            }
             TokenType::ClassName => {
                 self.consume_token();
                 return self.class_name(first_tok);
@@ -673,6 +681,18 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Extends(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn assert_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        self.expect(TokenType::LParen)?;
+        let condition = self.expression()?;
+        self.expect(TokenType::RParen)?;
+
+        Ok(Statement {
+            ty: StatementType::Assert { condition },
             line: first_tok.line,
             column: first_tok.column,
         })
@@ -1497,6 +1517,25 @@ impl Parser {
     fn literal(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
         Ok(Expression {
             ty: match first_tok.ty {
+                TokenType::Preload => {
+                    self.expect(TokenType::LParen)?;
+
+                    let path = match self.expect_token()? {
+                        Token {
+                            ty: TokenType::String(path),
+                            ..
+                        } => path.clone(),
+                        other => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: vec![TokenType::String("".to_owned())],
+                                actual: other.clone(),
+                            })
+                        }
+                    };
+
+                    self.expect(TokenType::RParen)?;
+                    ExpressionType::Preload(path)
+                }
                 TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
                 TokenType::StringName(ref string) => ExpressionType::StringName(string.clone()),
