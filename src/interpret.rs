@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
 use std::rc::Rc;
 
 use crate::compile::{ClassBytecode, Instruction};
@@ -21,8 +22,13 @@ impl Hash for Value {
             Value::Float(f) => f.to_bits().hash(state),
             Value::String(s) => s.hash(state),
             Value::Object(o) => {
-                let ptr = Rc::<_>::as_ptr(o);
-                ptr.hash(state);
+                let dict = o.borrow();
+                dict.len().hash(state);
+
+                for (key, value) in dict.deref() {
+                    key.hash(state);
+                    value.hash(state);
+                }
             }
         }
     }
@@ -34,7 +40,11 @@ impl PartialEq for Value {
             (Value::Integer(i1), Value::Integer(i2)) => i1 == i2,
             (Value::Float(f1), Value::Float(f2)) => f1 == f2,
             (Value::String(s1), Value::String(s2)) => s1 == s2,
-            (Value::Object(o1), Value::Object(o2)) => Rc::<_>::as_ptr(o1) == Rc::<_>::as_ptr(o2),
+            (Value::Object(o1), Value::Object(o2)) => {
+                let dict1 = o1.borrow();
+                let dict2 = o2.borrow();
+                dict1.deref() == dict2.deref()
+            }
             _ => false,
         }
     }
