@@ -7,8 +7,8 @@ A lightweight, embeddable GDScript interpreter
 GDScript is a great language for its domain: game engines
 
 - Beginner-friendly, approachable syntax
-- Gradually typed, opening possibilities for better optimization
 - Established ecosystem of editors, IDEs, and tools
+- Potential for better performance thanks to reference counting and gradual typing
 - Object-oriented nature is perfect for game programming
 
 ## Goals and non-goals
@@ -29,7 +29,7 @@ MicroGD **does not** hope to:
 # Roadmap
 
 - ✅ Tokenization (97% passing)
-- ✅ Parsing (42% passing)
+- ✅ Parsing (52% passing)
 - 🔄 Compiling
 - 🔄 Interpreting
 - ❌ Optimization
