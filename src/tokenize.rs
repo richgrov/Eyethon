@@ -295,6 +295,7 @@ impl Tokenizer {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::MinusEq));
                     }
+                    Some('.') => break Ok(self.number('-')),
                     Some(d) if d.is_ascii_digit() => break Ok(self.number('-')),
 
                     _ => break Ok(self.mk_token(TokenType::Minus)),

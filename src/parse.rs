@@ -1316,7 +1316,7 @@ impl Parser {
     }
 
     fn mul_div(&mut self) -> Result<Expression, ParseError> {
-        let mut expr = self.negate()?;
+        let mut expr = self.prefix()?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -1330,7 +1330,7 @@ impl Parser {
                         column: expr.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expr),
-                            rhs: Box::new(self.negate()?),
+                            rhs: Box::new(self.prefix()?),
                             operator: op,
                         },
                     };
@@ -1342,27 +1342,32 @@ impl Parser {
         Ok(expr)
     }
 
-    fn negate(&mut self) -> Result<Expression, ParseError> {
-        let Some(Token {
-            ty: TokenType::Minus,
-            line,
-            column,
-        }) = self.peek_tok()
-        else {
-            return self.attribute_access();
-        };
+    fn prefix(&mut self) -> Result<Expression, ParseError> {
+        match self.peek_tok() {
+            Some(Token {
+                ty: TokenType::Minus,
+                line,
+                column,
+            }) => {
+                let line = *line;
+                let column = *column;
+                self.consume_token();
 
-        let line = *line;
-        let column = *column;
-        self.next();
-
-        let target = self.attribute_access()?;
-
-        Ok(Expression {
-            ty: ExpressionType::Negate(Box::new(target)),
-            line,
-            column,
-        })
+                Ok(Expression {
+                    ty: ExpressionType::Negate(Box::new(self.prefix()?)),
+                    line,
+                    column,
+                })
+            }
+            Some(Token {
+                ty: TokenType::Plus,
+                ..
+            }) => {
+                self.consume_token();
+                self.prefix()
+            }
+            _ => self.attribute_access(),
+        }
     }
 
     fn attribute_access(&mut self) -> Result<Expression, ParseError> {
