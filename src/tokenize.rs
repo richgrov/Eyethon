@@ -13,6 +13,7 @@ pub enum TokenType {
     Comment { text: String },
     Identifier(String),
     String(String),
+    StringName(String),
     Integer(i64),
     Float(f64),
 
@@ -108,6 +109,7 @@ impl TokenType {
             Comment { .. } => "comment",
             Identifier(_) => "identifier",
             String(_) => "string",
+            StringName(_) => "string name",
             Integer(_) => "integer",
             Float(_) => "floating-point number",
             If => "if statement",
@@ -329,6 +331,12 @@ impl Tokenizer {
                 }
 
                 '&' => match self.peek_char() {
+                    Some('"') | Some('\'') => {
+                        let delim = self.next_char().unwrap();
+                        break self
+                            .string(delim)
+                            .map(|s| self.mk_token(TokenType::StringName(s)));
+                    }
                     Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::AmpersandEq));
@@ -425,7 +433,7 @@ impl Tokenizer {
                 '~' => break Ok(self.mk_token(TokenType::Tilde)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
-                '"' | '\'' => break self.string(c),
+                '"' | '\'' => break self.string(c).map(|s| self.mk_token(TokenType::String(s))),
 
                 '\\' => {
                     let Some('\n') = self.next_char() else {
@@ -555,14 +563,14 @@ impl Tokenizer {
         self.mk_token(token_type)
     }
 
-    fn string(&mut self, delim: char) -> Result<Token, TokenizerError> {
+    fn string(&mut self, delim: char) -> Result<String, TokenizerError> {
         let mut text = String::with_capacity(8);
         text.push(delim);
 
         while let Some(c) = self.peek_char() {
             if c == delim {
                 self.next_char();
-                return Ok(self.mk_token(TokenType::String(text)));
+                return Ok(text);
             }
 
             text.push(c);

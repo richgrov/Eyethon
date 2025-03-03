@@ -141,6 +141,7 @@ pub enum FunctionReturnType {
 pub enum ExpressionType {
     Identifier(String),
     String(String),
+    StringName(String),
     Integer(i64),
     Float(f64),
     Array(Vec<Expression>),
@@ -1281,6 +1282,7 @@ impl Parser {
             ty: match first_tok.ty {
                 TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
+                TokenType::StringName(ref string) => ExpressionType::StringName(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
