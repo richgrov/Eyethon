@@ -108,6 +108,8 @@ pub enum StatementType {
         identifier: String,
         ty: VariableType,
         value: Option<Expression>,
+        getter: Option<Vec<Statement>>,
+        setter: Option<(String, Vec<Statement>)>,
     },
     Enum {
         name: Option<String>,
@@ -250,6 +252,12 @@ pub enum ParseError {
         column: usize,
     },
     InvalidExpression(Token),
+    InvalidProperty {
+        expected: Vec<String>,
+        actual: String,
+        line: usize,
+        column: usize,
+    },
 }
 
 impl fmt::Display for ParseError {
@@ -312,6 +320,20 @@ impl fmt::Display for ParseError {
                     tok.line,
                     tok.column,
                     tok.ty.generic_name()
+                )
+            }
+            ParseError::InvalidProperty {
+                expected,
+                actual,
+                line,
+                column,
+            } => {
+                let expected_formatted = expected.join(" or ");
+
+                write!(
+                    f,
+                    "{}:{}: expected property accessor {} but found '{}'",
+                    line, column, expected_formatted, actual
                 )
             }
         }
@@ -729,6 +751,13 @@ impl Parser {
             (VariableType::Dynamic, value)
         };
 
+        let (getter, setter) = if self.consume_if(TokenType::Colon) {
+            self.expect(TokenType::Eol)?;
+            self.parse_property()?
+        } else {
+            (None, None)
+        };
+
         Ok(Statement {
             ty: StatementType::Var {
                 konst,
@@ -736,10 +765,116 @@ impl Parser {
                 identifier,
                 ty,
                 value,
+                getter,
+                setter,
             },
             line: first_tok.line,
             column: first_tok.column,
         })
+    }
+
+    fn parse_property(
+        &mut self,
+    ) -> Result<(Option<Vec<Statement>>, Option<(String, Vec<Statement>)>), ParseError> {
+        let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
+        let mut getter = None;
+        let mut setter = None;
+
+        let indent_info = self
+            .consume_until_nonempty_line()
+            .ok_or(ParseError::UnexpectedEof)?;
+
+        if indent_info.level <= expected_indent {
+            return Err(ParseError::ExpectedIndent {
+                line: indent_info.line,
+                column: indent_info.column,
+            });
+        }
+
+        self.consume_token();
+
+        self.parse_property_accessor(&mut getter, &mut setter)?;
+
+        if let Some(indent_info2) = self.consume_until_nonempty_line() {
+            if indent_info2.level == indent_info.level {
+                self.consume_token();
+                self.parse_property_accessor(&mut getter, &mut setter)?;
+            }
+        }
+
+        Ok((getter, setter))
+    }
+
+    fn parse_property_accessor(
+        &mut self,
+        getter: &mut Option<Vec<Statement>>,
+        setter: &mut Option<(String, Vec<Statement>)>,
+    ) -> Result<(), ParseError> {
+        let (accessor_type, line, column) = match self.expect_token()? {
+            Token {
+                ty: TokenType::Identifier(name),
+                line,
+                column,
+            } => (name.to_owned(), *line, *column),
+            other => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: vec![TokenType::Identifier("".to_owned())],
+                    actual: other.clone(),
+                })
+            }
+        };
+
+        if accessor_type == "get" {
+            if getter.is_some() {
+                return Err(ParseError::InvalidProperty {
+                    expected: vec!["set".to_owned()],
+                    actual: accessor_type,
+                    line,
+                    column,
+                });
+            }
+
+            self.expect(TokenType::Colon)?;
+
+            let getter_block = if self.consume_if(TokenType::Eol) {
+                self.parse_block_scope()?
+            } else {
+                self.parse_single_line_scope()?
+            };
+
+            getter.insert(getter_block);
+        } else if accessor_type == "set" {
+            if setter.is_some() {
+                return Err(ParseError::InvalidProperty {
+                    expected: vec!["get".to_owned()],
+                    actual: accessor_type,
+                    line,
+                    column,
+                });
+            }
+
+            self.expect(TokenType::LParen)?;
+            let param_name = self.expect_identifier()?;
+            self.expect(TokenType::RParen)?;
+            self.expect(TokenType::Colon)?;
+
+            let setter_block = if self.consume_if(TokenType::Eol) {
+                self.parse_block_scope()?
+            } else {
+                self.parse_single_line_scope()?
+            };
+
+            setter.insert((param_name, setter_block));
+        } else {
+            return Err(ParseError::InvalidProperty {
+                expected: vec!["get".to_string(), "set".to_string()],
+                actual: accessor_type,
+                line,
+                column,
+            });
+        }
+
+        Ok(())
     }
 
     fn parse_enum(&mut self, first_tok: Token) -> Result<Statement, ParseError> {

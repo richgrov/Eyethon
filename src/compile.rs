@@ -170,10 +170,7 @@ impl Compiler {
                 let _ = self.extends.insert(name);
             }
             StatementType::Var {
-                konst: _,
-                identifier,
-                ty: _,
-                value,
+                identifier, value, ..
             } => {
                 let Some(val) = value else { return Ok(()) };
 
