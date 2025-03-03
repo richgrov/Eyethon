@@ -893,7 +893,7 @@ impl Parser {
                 self.parse_single_line_scope()?
             };
 
-            getter.insert(getter_block);
+            let _ = getter.insert(getter_block);
         } else if accessor_type == "set" {
             if setter.is_some() {
                 return Err(ParseError::InvalidProperty {
@@ -915,7 +915,7 @@ impl Parser {
                 self.parse_single_line_scope()?
             };
 
-            setter.insert((param_name, setter_block));
+            let _ = setter.insert((param_name, setter_block));
         } else {
             return Err(ParseError::InvalidProperty {
                 expected: vec!["get".to_string(), "set".to_string()],
@@ -1274,7 +1274,7 @@ impl Parser {
                 let token = token.clone();
                 self.consume_token();
                 let expr = self.logical()?;
-                
+
                 return Ok(Expression {
                     line: token.line,
                     column: token.column,
@@ -1282,7 +1282,7 @@ impl Parser {
                 });
             }
         }
-        
+
         self.logical()
     }
 
