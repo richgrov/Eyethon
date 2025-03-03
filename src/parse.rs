@@ -192,6 +192,7 @@ pub enum ExpressionType {
         expr: Box<Expression>,
         into: String,
     },
+    Await(Box<Expression>),
 }
 
 #[derive(Debug)]
@@ -1201,7 +1202,7 @@ impl Parser {
     }
 
     fn is_operator(&mut self) -> Result<Expression, ParseError> {
-        let mut expr = self.logical()?;
+        let mut expr = self.await_expr()?;
 
         if let Some(token) = self.peek_tok() {
             if token.ty == TokenType::Is {
@@ -1228,6 +1229,24 @@ impl Parser {
         }
 
         Ok(expr)
+    }
+
+    fn await_expr(&mut self) -> Result<Expression, ParseError> {
+        if let Some(token) = self.peek_tok() {
+            if token.ty == TokenType::Await {
+                let token = token.clone();
+                self.consume_token();
+                let expr = self.logical()?;
+                
+                return Ok(Expression {
+                    line: token.line,
+                    column: token.column,
+                    ty: ExpressionType::Await(Box::new(expr)),
+                });
+            }
+        }
+        
+        self.logical()
     }
 
     fn logical(&mut self) -> Result<Expression, ParseError> {
