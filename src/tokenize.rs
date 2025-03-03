@@ -96,6 +96,7 @@ pub enum TokenType {
     Dot,
     DotDot,
     Tilde,
+    Dollar,
     Arrow,
     Eol,
 }
@@ -190,6 +191,7 @@ impl TokenType {
             Dot => ".",
             DotDot => "..",
             Tilde => "~",
+            Dollar => "$",
             Arrow => "->",
             Eol => "end of line",
         }
@@ -431,6 +433,7 @@ impl Tokenizer {
                 },
 
                 '~' => break Ok(self.mk_token(TokenType::Tilde)),
+                '$' => break Ok(self.mk_token(TokenType::Dollar)),
                 '@' => break Ok(self.mk_token(TokenType::At)),
 
                 '"' | '\'' => break self.string(c).map(|s| self.mk_token(TokenType::String(s))),
