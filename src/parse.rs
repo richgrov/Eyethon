@@ -170,6 +170,10 @@ pub enum ExpressionType {
         invert: bool,
         ty: String,
     },
+    Cast {
+        expr: Box<Expression>,
+        into: String,
+    },
 }
 
 #[derive(Debug)]
@@ -1180,8 +1184,7 @@ impl Parser {
     }
 
     fn attribute_access(&mut self) -> Result<Expression, ParseError> {
-        let token = self.expect_token()?.clone();
-        let mut expr = self.literal(&token)?;
+        let mut expr = self.expr_as()?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -1215,6 +1218,25 @@ impl Parser {
                     }
                 }
                 _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn expr_as(&mut self) -> Result<Expression, ParseError> {
+        let token = self.expect_token()?.clone();
+        let mut expr = self.literal(&token)?;
+
+        while self.consume_if(TokenType::As) {
+            let ty = self.expect_identifier()?;
+            expr = Expression {
+                ty: ExpressionType::Cast {
+                    expr: Box::new(expr),
+                    into: ty,
+                },
+                line: token.line,
+                column: token.column,
             }
         }
 
