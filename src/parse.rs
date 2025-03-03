@@ -119,10 +119,16 @@ pub enum StatementType {
 }
 
 #[derive(Debug)]
+pub struct Type {
+    pub ty: String,
+    pub generic_args: Vec<String>,
+}
+
+#[derive(Debug)]
 pub enum VariableType {
     Dynamic,
     Inferred,
-    Static(String),
+    Static(Type),
 }
 
 #[derive(Debug)]
@@ -135,7 +141,7 @@ pub struct Expression {
 #[derive(Debug)]
 pub struct FunctionParameter {
     pub name: String,
-    pub ty: Option<String>,
+    pub ty: Option<Type>,
     pub default: Option<Expression>,
 }
 
@@ -143,7 +149,7 @@ pub struct FunctionParameter {
 pub enum FunctionReturnType {
     Dynamic,
     Void,
-    Static(String),
+    Static(Type),
 }
 
 #[derive(Debug)]
@@ -737,7 +743,7 @@ impl Parser {
         let identifier = self.expect_identifier()?;
 
         let (ty, value) = if self.consume_if(TokenType::Colon) {
-            let ty = self.expect_identifier()?;
+            let ty = self.parse_type()?;
 
             let value = if self.consume_if(TokenType::Equal) {
                 Some(self.expression()?)
@@ -1462,7 +1468,7 @@ impl Parser {
             let name = self.expect_identifier()?;
 
             let ty = if self.consume_if(TokenType::Colon) {
-                Some(self.expect_identifier()?)
+                Some(self.parse_type()?)
             } else {
                 None
             };
@@ -1489,7 +1495,7 @@ impl Parser {
             if self.consume_if(TokenType::Void) {
                 FunctionReturnType::Void
             } else {
-                FunctionReturnType::Static(self.expect_identifier()?)
+                FunctionReturnType::Static(self.parse_type()?)
             }
         } else {
             FunctionReturnType::Dynamic
@@ -1625,6 +1631,36 @@ impl Parser {
         }
 
         Ok(args)
+    }
+
+    fn parse_type(&mut self) -> Result<Type, ParseError> {
+        let base = self.expect_identifier()?;
+
+        let generic_args = if self.consume_if(TokenType::LBracket) {
+            let mut args = Vec::new();
+
+            loop {
+                if self.consume_if(TokenType::RBracket) {
+                    break;
+                }
+
+                args.push(self.expect_identifier()?);
+
+                if !self.consume_if(TokenType::Comma) {
+                    self.expect(TokenType::RBracket)?;
+                    break;
+                }
+            }
+
+            args
+        } else {
+            Vec::new()
+        };
+
+        Ok(Type {
+            ty: base,
+            generic_args,
+        })
     }
 
     fn peek_tok(&mut self) -> Option<&Token> {
