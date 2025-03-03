@@ -71,6 +71,10 @@ pub enum StatementType {
         extends: Option<String>,
         statements: Vec<Statement>,
     },
+    Signal {
+        name: String,
+        parameters: Vec<String>,
+    },
     Return(Expression),
     Match {
         expression: Expression,
@@ -428,6 +432,10 @@ impl Parser {
                 self.consume_token();
                 return self.parse_class(first_tok);
             }
+            TokenType::Signal => {
+                self.consume_token();
+                return self.parse_signal(first_tok);
+            }
             TokenType::Extends => {
                 self.consume_token();
                 return self.extends(first_tok);
@@ -657,6 +665,33 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::Extends(name),
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_signal(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let name = self.expect_identifier()?;
+        let mut parameters = Vec::new();
+
+        self.expect(TokenType::LParen)?;
+
+        loop {
+            if self.consume_if(TokenType::RParen) {
+                break;
+            }
+
+            let param_name = self.expect_identifier()?;
+            parameters.push(param_name);
+
+            if !self.consume_if(TokenType::Comma) {
+                self.expect(TokenType::RParen)?;
+                break;
+            }
+        }
+
+        Ok(Statement {
+            ty: StatementType::Signal { name, parameters },
             line: first_tok.line,
             column: first_tok.column,
         })
