@@ -4,12 +4,12 @@ A lightweight, embeddable GDScript interpreter
 
 ## Why?
 
-GDScript is a great language for the purpose it's trying to solve: game engines
+GDScript is a great language for its domain: game engines
 
-- Approachable syntax designed for beginners
-- Object-oriented nature is perfect for game engines
-- Stricter than similar dynamic languages, opening possibilities for better optimizations
+- Beginner-friendly, approachable syntax
+- Gradually typed, opening possibilities for better optimization
 - Established ecosystem of editors, IDEs, and tools
+- Object-oriented nature is perfect for game programming
 
 ## Goals and non-goals
 
@@ -28,17 +28,17 @@ MicroGD **does not** hope to:
 
 # Roadmap
 
-MicroGD is in **extremely early** alpha, so there will be bugs and mismatches with the spec.
-
-For now, working features are prioritized over performance and 100% adherence
-
-Project status:
-
-- ✅ Tokenization
-- ✅ Parsing
+- ✅ Tokenization (95% passing)
+- ✅ Parsing (27% passing)
 - 🔄 Compiling
 - 🔄 Interpreting
 - ❌ Optimization
 - 🔄 Rust and C API
 - ❌ LSP
 - ❌ Debugger
+
+MicroGD uses tests from the official
+[Godot Engine Repository](https://github.com/godotengine/godot/tree/master/modules/gdscript/tests)
+to ensure identical behavior.
+
+For now, working features are prioritized over performance and 100% compatibility.
