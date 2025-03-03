@@ -232,6 +232,7 @@ pub struct TokenizerError {
 pub enum TokenizerErrorType {
     Unexpected { character: char },
     MixedIndent,
+    InvalidNumber,
     UnterminatedString { delim: char },
     InvalidLogicalLine,
 }
@@ -241,6 +242,7 @@ impl fmt::Display for TokenizerError {
         let message = match self.ty {
             TokenizerErrorType::Unexpected { character } => format!("unexpected '{}'", character),
             TokenizerErrorType::MixedIndent => format!("mixed indentation"),
+            TokenizerErrorType::InvalidNumber => format!("invalid number"),
             TokenizerErrorType::UnterminatedString { delim } => {
                 format!("string not terminated with {}", delim)
             }
@@ -295,8 +297,8 @@ impl Tokenizer {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::MinusEq));
                     }
-                    Some('.') => break Ok(self.number('-')),
-                    Some(d) if d.is_ascii_digit() => break Ok(self.number('-')),
+                    Some('.') => break self.number('-'),
+                    Some(d) if d.is_ascii_digit() => break self.number('-'),
 
                     _ => break Ok(self.mk_token(TokenType::Minus)),
                 },
@@ -429,7 +431,7 @@ impl Tokenizer {
                 ';' => break Ok(self.mk_token(TokenType::Semicolon)),
 
                 '.' => match self.peek_char() {
-                    Some(c) if c.is_ascii_digit() => break Ok(self.number('.')),
+                    Some(c) if c.is_ascii_digit() => break self.number('.'),
                     _ => break Ok(self.mk_token(TokenType::Dot)),
                 },
 
@@ -449,7 +451,7 @@ impl Tokenizer {
 
                 other if other.is_alphabetic() || other == '_' => break Ok(self.identifier(other)),
 
-                other if other.is_ascii_digit() => break Ok(self.number(other)),
+                other if other.is_ascii_digit() => break self.number(other),
 
                 other => {
                     break Err(self.mk_error(TokenizerErrorType::Unexpected { character: other }))
@@ -584,9 +586,23 @@ impl Tokenizer {
         Err(self.mk_error(TokenizerErrorType::UnterminatedString { delim }))
     }
 
-    fn number(&mut self, first: char) -> Token {
+    fn number(&mut self, first: char) -> Result<Token, TokenizerError> {
         let mut text = String::with_capacity(8);
         text.push(first);
+
+        if first == '0' {
+            if let Some('b') = self.peek_char() {
+                self.next_char();
+                let int = self.radix_number(2, "binary")?;
+                return Ok(self.mk_token(TokenType::Integer(int)));
+            }
+
+            if let Some('x') = self.peek_char() {
+                self.next_char();
+                let int = self.radix_number(16, "hex")?;
+                return Ok(self.mk_token(TokenType::Integer(int)));
+            }
+        }
 
         let mut is_float = first == '.';
 
@@ -660,14 +676,41 @@ impl Tokenizer {
                 "{}:{}: internal error parsing {} as float",
                 self.line, self.column, text
             ));
-            self.mk_token(TokenType::Float(float))
+            Ok(self.mk_token(TokenType::Float(float)))
         } else {
             let int = text.parse::<i64>().expect(&format!(
                 "{}:{}: internal error parsing {} as integer",
                 self.line, self.column, text
             ));
-            self.mk_token(TokenType::Integer(int))
+            Ok(self.mk_token(TokenType::Integer(int)))
         }
+    }
+
+    fn radix_number(&mut self, radix: u32, name: &'static str) -> Result<i64, TokenizerError> {
+        let mut text = String::new();
+        loop {
+            match self.peek_char() {
+                Some(c) if c.is_digit(radix) => {
+                    self.next_char();
+                    text.push(c);
+                }
+                Some('_') => {
+                    self.next_char();
+                }
+                _ => break,
+            }
+        }
+
+        if text.is_empty() {
+            return Err(self.mk_error(TokenizerErrorType::InvalidNumber));
+        }
+
+        let int = i64::from_str_radix(&text, radix).expect(&format!(
+            "{}:{}: internal error parsing {} as {}",
+            self.line, self.column, text, name
+        ));
+
+        Ok(int)
     }
 
     fn peek_char(&self) -> Option<char> {
