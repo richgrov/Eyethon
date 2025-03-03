@@ -165,6 +165,11 @@ pub enum ExpressionType {
         rhs: Box<Expression>,
         operator: BinaryOperator,
     },
+    InstanceOf {
+        expr: Box<Expression>,
+        invert: bool,
+        ty: String,
+    },
 }
 
 #[derive(Debug)]
@@ -1006,7 +1011,37 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.logical()
+        self.is_operator()
+    }
+
+    fn is_operator(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.logical()?;
+
+        if let Some(token) = self.peek_tok() {
+            if token.ty == TokenType::Is {
+                self.consume_token();
+
+                let invert = if self.consume_if(TokenType::Not) {
+                    true
+                } else {
+                    false
+                };
+
+                let ty = self.expect_identifier()?;
+
+                expr = Expression {
+                    line: expr.line,
+                    column: expr.column,
+                    ty: ExpressionType::InstanceOf {
+                        expr: Box::new(expr),
+                        invert,
+                        ty,
+                    },
+                };
+            }
+        }
+
+        Ok(expr)
     }
 
     fn logical(&mut self) -> Result<Expression, ParseError> {
