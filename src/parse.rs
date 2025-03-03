@@ -133,6 +133,13 @@ pub struct Expression {
 }
 
 #[derive(Debug)]
+pub struct FunctionParameter {
+    pub name: String,
+    pub ty: Option<String>,
+    pub default: Option<Expression>,
+}
+
+#[derive(Debug)]
 pub enum FunctionReturnType {
     Dynamic,
     Void,
@@ -159,7 +166,7 @@ pub enum ExpressionType {
     Function {
         name: String,
         static_: bool,
-        args: Vec<(String, Option<String>)>,
+        args: Vec<FunctionParameter>,
         return_type: FunctionReturnType,
         statements: Vec<Statement>,
     },
@@ -1460,7 +1467,17 @@ impl Parser {
                 None
             };
 
-            args.push((name, ty));
+            let default_value = if self.consume_if(TokenType::Equal) {
+                Some(self.expression()?)
+            } else {
+                None
+            };
+
+            args.push(FunctionParameter {
+                name,
+                ty,
+                default: default_value,
+            });
 
             if !self.consume_if(TokenType::Comma) {
                 self.expect(TokenType::RParen)?;
