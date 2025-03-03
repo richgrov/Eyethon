@@ -143,4 +143,21 @@ mod tests {
             panic!("{}/{} cases failed", failed, total);
         }
     }
+
+    #[test]
+    fn runtime_features() {
+        let mut failed = 0;
+        let mut total = 0;
+
+        for test in get_tests("runtime/features") {
+            if !run_test(&test) {
+                failed += 1;
+            }
+            total += 1;
+        }
+
+        if failed > 0 || total == 0 {
+            panic!("{}/{} cases failed", failed, total);
+        }
+    }
 }
