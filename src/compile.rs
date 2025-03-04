@@ -17,6 +17,8 @@ pub enum Instruction {
     PushInt(i64),
     PushFloat(f64),
     PushString(String),
+    PushGlobal(String),
+    Call { n_args: usize },
     Store,
 }
 

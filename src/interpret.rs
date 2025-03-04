@@ -136,6 +136,20 @@ impl Interpreter {
                 Instruction::PushString(s) => {
                     stack.push(Value::String(s.clone()));
                 }
+                Instruction::PushGlobal(identifier) => {
+                    let global = self.globals.get(identifier).unwrap();
+                    stack.push(global.clone());
+                }
+                Instruction::Call { n_args } => {
+                    let callee = stack.pop().unwrap();
+                    if let Value::NativeFunction(func) = callee {
+                        let args = stack.split_off(stack.len() - n_args);
+                        let result = func(args);
+                        stack.push(result);
+                    } else {
+                        return Err(RuntimeError::NotCallable);
+                    }
+                }
                 Instruction::Store => {
                     let val = stack.pop().unwrap();
                     let key = stack.pop().unwrap();
