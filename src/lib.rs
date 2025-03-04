@@ -43,7 +43,13 @@ pub enum Error {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::ops::{Deref, DerefMut};
+    use std::rc::Rc;
+    use std::sync::Mutex;
+
+    use interpret::Value;
 
     use crate::*;
 
@@ -103,11 +109,6 @@ mod tests {
             }
         };
 
-        if true {
-            // to be removed after more parser tests are passing
-            return true;
-        }
-
         let class = match compile::compile(ast, HashMap::new(), "Test".to_owned()) {
             Ok(c) => c,
             Err(e) => {
@@ -119,14 +120,58 @@ mod tests {
         let class_name = class.name.clone();
 
         let mut interpreter = interpret::Interpreter::new();
+
+        let output = Rc::new(RefCell::new("GDTEST_OK\n".to_owned()));
+        let out = output.clone();
+
+        interpreter.set_global(
+            "print",
+            Value::NativeFunction(Rc::new(move |args| {
+                let mut output = out.borrow_mut();
+
+                for arg in args {
+                    output.push_str(&format!("{}\n", arg));
+                }
+
+                Value::Null
+            })),
+        );
+
         if let Err(e) = interpreter.register_class(class) {
             eprintln!("register class failed: {}", e);
             return false;
         }
 
-        if let Err(e) = interpreter.new_instance(&class_name) {
-            eprintln!("instantiation failed: {}", e);
-            return false;
+        let object = match interpreter.new_instance(&class_name) {
+            Ok(o) => o,
+            Err(e) => {
+                eprintln!("instantiation failed: {}", e);
+                return false;
+            }
+        };
+
+        match interpreter.call_method(object, "test") {
+            Ok(Some(obj)) => {
+                eprintln!("{} returned a value: {}", test.name, obj);
+                return false;
+            }
+            Ok(None) => {}
+            Err(e) => {
+                eprintln!("call {} failed: {}", test.name, e);
+                return false;
+            }
+        }
+
+        if let Some(expected) = &test.output {
+            let actual = output.borrow();
+            if actual.ne(expected) {
+                eprintln!("-- expected output for {} --", test.name);
+                eprintln!("{}", expected);
+                eprintln!("-- actual output --");
+                eprintln!("{}", actual);
+                eprintln!("-- end --");
+                return false;
+            }
         }
 
         true

@@ -20,6 +20,7 @@ pub enum Instruction {
     PushGlobal(String),
     Call { n_args: usize },
     Store,
+    Return,
 }
 
 #[derive(Debug)]
@@ -76,6 +77,8 @@ struct Compiler {
     extends: Option<String>,
     non_class_name_statement_seen: bool,
     init_instructions: Vec<Instruction>,
+    instructions: Vec<Instruction>,
+    function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<()>,
 }
 
@@ -92,6 +95,8 @@ impl Compiler {
             extends: None,
             non_class_name_statement_seen: false,
             init_instructions: Vec::new(),
+            instructions: Vec::new(),
+            function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
         }
     }
@@ -103,12 +108,24 @@ impl Compiler {
         for statement in statements {
             self.handle_statement(statement)?;
         }
+        self.init_instructions.push(Instruction::Return);
+
+        let mut functions = self.function_entry_points;
+        for addr in functions.values_mut() {
+            *addr += self.init_instructions.len();
+        }
+
+        let mut bytecode =
+            Vec::with_capacity(self.init_instructions.len() + self.instructions.len());
+
+        bytecode.extend(self.init_instructions);
+        bytecode.extend(self.instructions);
 
         Ok(ClassBytecode {
             name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
-            bytecode: self.init_instructions,
-            functions: HashMap::new(),
+            bytecode,
+            functions,
         })
     }
 
@@ -174,17 +191,26 @@ impl Compiler {
             StatementType::Expression(Expression {
                 ty:
                     ExpressionType::Function {
-                        name: _,
-                        static_: _,
-                        args: _,
-                        return_type: _,
-                        statements: _,
+                        name,
+                        static_,
+                        args,
+                        return_type,
+                        statements,
                     },
                 ..
-            }) if self.function_scope_stack.is_empty() => {}
+            }) if self.function_scope_stack.is_empty() => {
+                let instructions = &mut self.instructions;
+                self.function_entry_points.insert(name, instructions.len());
+                instructions.push(Instruction::Return);
+            }
+            StatementType::Expression(expr) => {
+                let mut expr_instructions = Vec::new();
+                Self::evaluate_expression(&mut expr_instructions, expr)?;
+                self.init_instructions.extend(expr_instructions);
+            }
             StatementType::Var {
                 identifier, value, ..
-            } => {
+            } if self.function_scope_stack.is_empty() => {
                 let Some(val) = value else { return Ok(()) };
 
                 self.on_init(Instruction::Duplicate(0));
@@ -197,11 +223,11 @@ impl Compiler {
                 self.on_init(Instruction::Store);
             }
             other => {
-                /*return Err(CompileError::NotImplemented {
+                return Err(CompileError::NotImplemented {
                     line: statement.line,
                     column: statement.column,
                     message: format!("{:?} not implemented yet", other),
-                })*/
+                })
             }
         }
 
@@ -225,6 +251,16 @@ impl Compiler {
             }
             ExpressionType::Float(f) => {
                 instructions.push(Instruction::PushFloat(f));
+            }
+            ExpressionType::FunctionCall(expr) => {
+                let n_args = expr.args.len();
+                for arg in expr.args {
+                    Self::evaluate_expression(instructions, arg)?;
+                }
+
+                Self::evaluate_expression(instructions, *expr.callee)?;
+
+                instructions.push(Instruction::Call { n_args });
             }
             other => {
                 return Err(CompileError::NotImplemented {
