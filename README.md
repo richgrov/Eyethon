@@ -29,7 +29,7 @@ MicroGD **does not** hope to:
 # Roadmap
 
 - ✅ Tokenization (97% passing)
-- ✅ Parsing (52% passing)
+- ✅ Parsing (55% passing)
 - 🔄 Compiling
 - 🔄 Interpreting
 - ❌ Optimization

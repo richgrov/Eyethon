@@ -14,6 +14,7 @@ pub enum TokenType {
     Identifier(String),
     String(String),
     StringName(String),
+    NodePath(String),
     Integer(i64),
     Float(f64),
 
@@ -110,6 +111,7 @@ impl TokenType {
             Identifier(_) => "identifier",
             String(_) => "string",
             StringName(_) => "string name",
+            NodePath(_) => "string name",
             Integer(_) => "integer",
             Float(_) => "floating-point number",
             If => "if statement",
@@ -363,13 +365,19 @@ impl Tokenizer {
                     _ => break Ok(self.mk_token(TokenType::Pipe)),
                 },
 
-                '^' => {
-                    if self.peek_char() == Some('=') {
+                '^' => match self.peek_char() {
+                    Some('"') | Some('\'') => {
+                        let delim = self.next_char().unwrap();
+                        break self
+                            .string(delim)
+                            .map(|s| self.mk_token(TokenType::StringName(s)));
+                    }
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::CarotEq));
                     }
-                    break Ok(self.mk_token(TokenType::Carot));
-                }
+                    _ => break Ok(self.mk_token(TokenType::Carot)),
+                },
 
                 '<' => match self.peek_char() {
                     Some('=') => {

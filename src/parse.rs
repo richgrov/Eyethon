@@ -105,6 +105,7 @@ pub enum StatementType {
     },
     For {
         variable: String,
+        var_type: Option<Type>,
         iterator: Expression,
         statements: Vec<Statement>,
     },
@@ -596,6 +597,13 @@ impl Parser {
 
     fn for_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let variable = self.expect_identifier()?;
+
+        let var_type = if self.consume_if(TokenType::Colon) {
+            Some(self.parse_type()?)
+        } else {
+            None
+        };
+
         self.expect(TokenType::In)?;
         let iterator = self.expression()?;
         self.expect(TokenType::Colon)?;
@@ -605,6 +613,7 @@ impl Parser {
         Ok(Statement {
             ty: StatementType::For {
                 variable,
+                var_type,
                 iterator,
                 statements,
             },
