@@ -150,19 +150,19 @@ mod tests {
             }
         };
 
-        match interpreter.call_method(object, "test") {
-            Ok(Some(obj)) => {
-                eprintln!("{} returned a value: {}", test.name, obj);
-                return false;
-            }
-            Ok(None) => {}
-            Err(e) => {
-                eprintln!("call {} failed: {}", test.name, e);
-                return false;
-            }
-        }
-
         if let Some(expected) = &test.output {
+            match interpreter.call_method(object, "test") {
+                Ok(Some(obj)) => {
+                    eprintln!("{} returned a value: {}", test.name, obj);
+                    return false;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    eprintln!("call {} failed: {}", test.name, e);
+                    return false;
+                }
+            }
+
             let actual = output.borrow();
             if actual.ne(expected) {
                 eprintln!("-- expected output for {} --", test.name);
