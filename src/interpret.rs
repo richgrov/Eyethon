@@ -141,6 +141,7 @@ pub enum RuntimeError {
     NotSettable,
     NotCallable,
     NoSuchMethod(String),
+    BadStack,
     OutOfInstructions,
 }
 
@@ -150,6 +151,7 @@ impl fmt::Display for RuntimeError {
             RuntimeError::NotSettable => write!(f, "not settable"),
             RuntimeError::NotCallable => write!(f, "not callable"),
             RuntimeError::NoSuchMethod(ref name) => write!(f, "no such method: {}", name),
+            RuntimeError::BadStack => write!(f, "bad stack"),
             RuntimeError::OutOfInstructions => write!(f, "out of instructions"),
         }
     }
@@ -268,7 +270,15 @@ impl Interpreter {
 
                     dict.borrow_mut().insert(key, val);
                 }
-                Instruction::Return => return Ok(stack.pop()),
+                Instruction::Return => {
+                    if stack.len() == args.len() {
+                        return Ok(None);
+                    } else if stack.len() == args.len() + 1 {
+                        return Ok(stack.pop());
+                    } else {
+                        return Err(RuntimeError::BadStack);
+                    }
+                }
             }
 
             pc += 1;
