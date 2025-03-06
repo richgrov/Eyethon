@@ -144,7 +144,7 @@ pub struct Interpreter {
 
 #[derive(Debug)]
 pub enum RuntimeError {
-    NotSettable,
+    NotSettable(Value),
     NotCallable,
     NoSuchMethod(String),
     BadStack,
@@ -153,10 +153,10 @@ pub enum RuntimeError {
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            RuntimeError::NotSettable => write!(f, "not settable"),
+        match self {
+            RuntimeError::NotSettable(value) => write!(f, "{} is not settable", value),
             RuntimeError::NotCallable => write!(f, "not callable"),
-            RuntimeError::NoSuchMethod(ref name) => write!(f, "no such method: {}", name),
+            RuntimeError::NoSuchMethod(name) => write!(f, "no such method: {}", name),
             RuntimeError::BadStack => write!(f, "bad stack"),
             RuntimeError::OutOfInstructions => write!(f, "out of instructions"),
         }
@@ -270,11 +270,17 @@ impl Interpreter {
                     let key = stack.pop().unwrap();
                     let obj = stack.pop().unwrap();
 
-                    let Value::Dictionary(dict) = obj else {
-                        return Err(RuntimeError::NotSettable);
-                    };
-
-                    dict.borrow_mut().insert(key, val);
+                    match obj {
+                        Value::Dictionary(dict) => {
+                            dict.borrow_mut().insert(key, val);
+                        }
+                        Value::Object { variables, .. } => {
+                            variables.borrow_mut().insert(key, val);
+                        }
+                        other => {
+                            return Err(RuntimeError::NotSettable(other));
+                        }
+                    }
                 }
                 Instruction::Return => {
                     if stack.len() == args.len() {
