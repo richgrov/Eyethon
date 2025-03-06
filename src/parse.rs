@@ -1901,14 +1901,6 @@ impl Parser {
             }
         }
     }
-
-    fn consume_whitespace(&mut self) {
-        if let Some(indent_info) = self.consume_until_nonempty_line() {
-            if indent_info.level > 0 {
-                self.consume_token();
-            }
-        }
-    }
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Vec<Statement>, ParseError> {
