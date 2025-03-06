@@ -145,7 +145,7 @@ mod tests {
         let object = match interpreter.new_instance(&class_name) {
             Ok(o) => o,
             Err(e) => {
-                eprintln!("instantiation failed: {}", e);
+                eprintln!("instantiation of {} failed: {}", test.name, e);
                 return false;
             }
         };
