@@ -147,6 +147,15 @@ pub struct Expression {
 }
 
 #[derive(Debug)]
+pub struct Function {
+    pub name: String,
+    pub static_: bool,
+    pub args: Vec<FunctionParameter>,
+    pub return_type: FunctionReturnType,
+    pub statements: Vec<Statement>,
+}
+
+#[derive(Debug)]
 pub struct FunctionParameter {
     pub name: String,
     pub ty: Option<Type>,
@@ -178,13 +187,7 @@ pub enum ExpressionType {
         expr: Box<Expression>,
         attribute: String,
     },
-    Function {
-        name: String,
-        static_: bool,
-        args: Vec<FunctionParameter>,
-        return_type: FunctionReturnType,
-        statements: Vec<Statement>,
-    },
+    Function(Function),
     FunctionCall(FunctionCallExpression),
     Negate(Box<Expression>),
     Binary {
@@ -1626,13 +1629,13 @@ impl Parser {
             self.parse_single_line_scope()?
         };
 
-        Ok(ExpressionType::Function {
+        Ok(ExpressionType::Function(Function {
             name,
             static_,
             args,
             return_type,
             statements,
-        })
+        }))
     }
 
     fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {

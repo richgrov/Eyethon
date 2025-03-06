@@ -51,6 +51,7 @@ pub enum CompileError {
         line: usize,
         column: usize,
     },
+    NotAllowedAtTopLevel(Statement),
     NotImplemented {
         line: usize,
         column: usize,
@@ -67,6 +68,13 @@ impl fmt::Display for CompileError {
             }
             CompileError::InvalidExtends { line, column } => {
                 write!(f, "{}:{}: extends not allowed here", line, column)
+            }
+            CompileError::NotAllowedAtTopLevel(statement) => {
+                write!(
+                    f,
+                    "{}:{}: {:?} not allowed here",
+                    statement.line, statement.column, statement.ty
+                )
             }
             CompileError::NotImplemented {
                 line,
@@ -116,22 +124,123 @@ impl Compiler {
         mut self,
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
-        let mut bytecode = Vec::new();
-        for statement in statements {
-            self.handle_statement(&mut bytecode, statement)?;
-        }
-        bytecode.push(Instruction::Return);
+        let mut instructions = Vec::new();
+        let mut functions = Vec::new();
 
-        let mut functions = self.function_entry_points;
-        for addr in functions.values_mut() {
-            *addr += bytecode.len();
+        for statement in statements {
+            match statement.ty {
+                StatementType::ClassName {
+                    class_name,
+                    extends,
+                } => {
+                    if self.non_class_name_statement_seen {
+                        return Err(CompileError::InvalidClassName {
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+
+                    if let Some(_) = self.class_name {
+                        return Err(CompileError::InvalidClassName {
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+
+                    let _ = self.class_name.insert(class_name);
+
+                    if let Some(ext) = extends {
+                        if let Some(_) = self.extends {
+                            return Err(CompileError::InvalidClassName {
+                                line: statement.line,
+                                column: statement.column,
+                            });
+                        }
+
+                        let _ = self.extends.insert(ext);
+                    }
+                }
+                StatementType::Extends(name) => {
+                    if self.non_class_name_statement_seen {
+                        return Err(CompileError::InvalidExtends {
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+
+                    if let Some(_) = self.extends {
+                        return Err(CompileError::InvalidExtends {
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+
+                    let _ = self.extends.insert(name);
+                }
+                StatementType::Expression(Expression {
+                    ty: ExpressionType::Function(func),
+                    ..
+                }) => {
+                    functions.push(func);
+                }
+                StatementType::Var {
+                    konst,
+                    static_,
+                    identifier,
+                    ty,
+                    value,
+                    getter,
+                    setter,
+                } => {
+                    let Some(val) = value else {
+                        continue;
+                    };
+
+                    instructions.push(Instruction::Duplicate(0));
+                    instructions.push(Instruction::PushString(identifier));
+
+                    let mut expression_instructions = Vec::new();
+                    Self::evaluate_expression(&mut expression_instructions, val)?;
+                    instructions.extend(expression_instructions);
+
+                    instructions.push(Instruction::Store);
+                }
+                StatementType::Pass
+                | StatementType::If { .. }
+                | StatementType::Return(_)
+                | StatementType::Expression(_)
+                | StatementType::For { .. }
+                | StatementType::Match { .. }
+                | StatementType::While { .. }
+                | StatementType::Assert { .. } => {
+                    return Err(CompileError::NotAllowedAtTopLevel(statement))
+                }
+                other => {
+                    return Err(CompileError::NotImplemented {
+                        line: statement.line,
+                        column: statement.column,
+                        message: format!("{:?}", other),
+                    })
+                }
+            }
+        }
+
+        instructions.push(Instruction::Return);
+
+        let mut function_entry_points = HashMap::with_capacity(functions.len());
+        for function in functions {
+            function_entry_points.insert(function.name, instructions.len());
+            for statement in function.statements {
+                self.handle_statement(&mut instructions, statement)?;
+            }
+            instructions.push(Instruction::Return);
         }
 
         Ok(ClassBytecode {
             name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
-            bytecode,
-            functions,
+            bytecode: instructions,
+            functions: function_entry_points,
         })
     }
 
@@ -150,89 +259,8 @@ impl Compiler {
                 handler();
                 self.handle_statement(instructions, *target)?;
             }
-            StatementType::ClassName {
-                class_name,
-                extends,
-            } => {
-                if self.non_class_name_statement_seen {
-                    return Err(CompileError::InvalidClassName {
-                        line: statement.line,
-                        column: statement.column,
-                    });
-                }
-
-                if let Some(_) = self.class_name {
-                    return Err(CompileError::InvalidClassName {
-                        line: statement.line,
-                        column: statement.column,
-                    });
-                }
-
-                let _ = self.class_name.insert(class_name);
-
-                if let Some(ext) = extends {
-                    if let Some(_) = self.extends {
-                        return Err(CompileError::InvalidClassName {
-                            line: statement.line,
-                            column: statement.column,
-                        });
-                    }
-
-                    let _ = self.extends.insert(ext);
-                }
-            }
-            StatementType::Extends(name) => {
-                if self.non_class_name_statement_seen {
-                    return Err(CompileError::InvalidExtends {
-                        line: statement.line,
-                        column: statement.column,
-                    });
-                }
-
-                if let Some(_) = self.extends {
-                    return Err(CompileError::InvalidExtends {
-                        line: statement.line,
-                        column: statement.column,
-                    });
-                }
-
-                let _ = self.extends.insert(name);
-            }
-            StatementType::Expression(Expression {
-                ty:
-                    ExpressionType::Function {
-                        name,
-                        static_,
-                        args,
-                        return_type,
-                        statements,
-                    },
-                ..
-            }) if self.function_scope_stack.is_empty() => {
-                self.function_entry_points.insert(name, instructions.len());
-
-                for statement in statements {
-                    self.handle_statement(instructions, statement)?;
-                }
-
-                instructions.push(Instruction::Return);
-            }
             StatementType::Expression(expr) => {
                 Self::evaluate_expression(instructions, expr)?;
-            }
-            StatementType::Var {
-                identifier, value, ..
-            } if self.function_scope_stack.is_empty() => {
-                let Some(val) = value else { return Ok(()) };
-
-                instructions.push(Instruction::Duplicate(0));
-                instructions.push(Instruction::PushString(identifier));
-
-                let mut expression_instructions = Vec::new();
-                Self::evaluate_expression(&mut expression_instructions, val)?;
-                instructions.extend(expression_instructions);
-
-                instructions.push(Instruction::Store);
             }
             other => {
                 return Err(CompileError::NotImplemented {
