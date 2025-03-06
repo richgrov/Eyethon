@@ -23,6 +23,21 @@ pub enum Instruction {
     Return,
 }
 
+impl fmt::Display for Instruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Instruction::Duplicate(n) => write!(f, "dup {}", n),
+            Instruction::PushInt(i) => write!(f, "pushi {}", i),
+            Instruction::PushFloat(fl) => write!(f, "pushf {}", fl),
+            Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
+            Instruction::PushGlobal(s) => write!(f, "pushg \"{}\"", s),
+            Instruction::Call { n_args } => write!(f, "call {}", n_args),
+            Instruction::Store => write!(f, "store"),
+            Instruction::Return => write!(f, "return"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum CompileError {
     InvalidAnnotation {
