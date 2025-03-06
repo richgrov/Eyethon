@@ -76,7 +76,6 @@ struct Compiler {
     fallback_class_name: String,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
-    instructions: Vec<Instruction>,
     function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<()>,
 }
@@ -93,7 +92,6 @@ impl Compiler {
             class_name: None,
             extends: None,
             non_class_name_statement_seen: false,
-            instructions: Vec::new(),
             function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
         }
@@ -103,21 +101,16 @@ impl Compiler {
         mut self,
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
-        let mut init_instructions = Vec::new();
+        let mut bytecode = Vec::new();
         for statement in statements {
-            self.handle_statement(&mut init_instructions, statement)?;
+            self.handle_statement(&mut bytecode, statement)?;
         }
-        init_instructions.push(Instruction::Return);
+        bytecode.push(Instruction::Return);
 
         let mut functions = self.function_entry_points;
         for addr in functions.values_mut() {
-            *addr += init_instructions.len();
+            *addr += bytecode.len();
         }
-
-        let mut bytecode = Vec::with_capacity(init_instructions.len() + self.instructions.len());
-
-        bytecode.extend(init_instructions);
-        bytecode.extend(self.instructions);
 
         Ok(ClassBytecode {
             name: self.class_name.unwrap_or(self.fallback_class_name),
@@ -201,8 +194,12 @@ impl Compiler {
                     },
                 ..
             }) if self.function_scope_stack.is_empty() => {
-                let instructions = &mut self.instructions;
                 self.function_entry_points.insert(name, instructions.len());
+
+                for statement in statements {
+                    self.handle_statement(instructions, statement)?;
+                }
+
                 instructions.push(Instruction::Return);
             }
             StatementType::Expression(expr) => {
