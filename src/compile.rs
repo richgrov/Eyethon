@@ -76,7 +76,6 @@ struct Compiler {
     fallback_class_name: String,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
-    init_instructions: Vec<Instruction>,
     instructions: Vec<Instruction>,
     function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<()>,
@@ -94,7 +93,6 @@ impl Compiler {
             class_name: None,
             extends: None,
             non_class_name_statement_seen: false,
-            init_instructions: Vec::new(),
             instructions: Vec::new(),
             function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
@@ -105,20 +103,20 @@ impl Compiler {
         mut self,
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
+        let mut init_instructions = Vec::new();
         for statement in statements {
-            self.handle_statement(statement)?;
+            self.handle_statement(&mut init_instructions, statement)?;
         }
-        self.init_instructions.push(Instruction::Return);
+        init_instructions.push(Instruction::Return);
 
         let mut functions = self.function_entry_points;
         for addr in functions.values_mut() {
-            *addr += self.init_instructions.len();
+            *addr += init_instructions.len();
         }
 
-        let mut bytecode =
-            Vec::with_capacity(self.init_instructions.len() + self.instructions.len());
+        let mut bytecode = Vec::with_capacity(init_instructions.len() + self.instructions.len());
 
-        bytecode.extend(self.init_instructions);
+        bytecode.extend(init_instructions);
         bytecode.extend(self.instructions);
 
         Ok(ClassBytecode {
@@ -129,7 +127,11 @@ impl Compiler {
         })
     }
 
-    fn handle_statement(&mut self, statement: Statement) -> Result<(), CompileError> {
+    fn handle_statement(
+        &mut self,
+        instructions: &mut Vec<Instruction>,
+        statement: Statement,
+    ) -> Result<(), CompileError> {
         match statement.ty {
             StatementType::Annotation { name, target, .. } => {
                 let handler = self
@@ -138,7 +140,7 @@ impl Compiler {
                     .ok_or(CompileError::InvalidAnnotation { name })?;
 
                 handler();
-                self.handle_statement(*target)?;
+                self.handle_statement(instructions, *target)?;
             }
             StatementType::ClassName {
                 class_name,
@@ -204,23 +206,21 @@ impl Compiler {
                 instructions.push(Instruction::Return);
             }
             StatementType::Expression(expr) => {
-                let mut expr_instructions = Vec::new();
-                Self::evaluate_expression(&mut expr_instructions, expr)?;
-                self.init_instructions.extend(expr_instructions);
+                Self::evaluate_expression(instructions, expr)?;
             }
             StatementType::Var {
                 identifier, value, ..
             } if self.function_scope_stack.is_empty() => {
                 let Some(val) = value else { return Ok(()) };
 
-                self.on_init(Instruction::Duplicate(0));
-                self.on_init(Instruction::PushString(identifier));
+                instructions.push(Instruction::Duplicate(0));
+                instructions.push(Instruction::PushString(identifier));
 
                 let mut expression_instructions = Vec::new();
                 Self::evaluate_expression(&mut expression_instructions, val)?;
-                self.init_instructions.extend(expression_instructions);
+                instructions.extend(expression_instructions);
 
-                self.on_init(Instruction::Store);
+                instructions.push(Instruction::Store);
             }
             other => {
                 return Err(CompileError::NotImplemented {
@@ -232,10 +232,6 @@ impl Compiler {
         }
 
         Ok(())
-    }
-
-    fn on_init(&mut self, instruction: Instruction) {
-        self.init_instructions.push(instruction);
     }
 
     fn evaluate_expression(
