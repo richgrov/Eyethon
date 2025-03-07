@@ -110,8 +110,9 @@ mod tests {
                 let mut output = out.borrow_mut();
 
                 for arg in args {
-                    output.push_str(&format!("{}\n", arg));
+                    output.push_str(&format!("{}", arg));
                 }
+                output.push('\n');
 
                 Value::Null
             })),
