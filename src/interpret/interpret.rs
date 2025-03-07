@@ -129,7 +129,10 @@ impl Interpreter {
         while pc < instructions.len() {
             match &instructions[pc] {
                 Instruction::Duplicate(index) => {
-                    stack.push(stack[*index].clone());
+                    let Some(value) = stack.get(*index) else {
+                        return Err(RuntimeError::BadStack);
+                    };
+                    stack.push(value.clone());
                 }
                 Instruction::PushInt(i) => {
                     stack.push(Value::Integer(*i));
