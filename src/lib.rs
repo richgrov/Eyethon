@@ -105,6 +105,29 @@ mod tests {
         let out = output.clone();
 
         interpreter.set_global(
+            "is_equal_approx",
+            Value::NativeFunction(Rc::new(move |args| {
+                if args.len() != 2 {
+                    return Value::Bool(false);
+                }
+
+                let a = match &args[0] {
+                    Value::Float(f) => *f,
+                    Value::Integer(i) => *i as f64,
+                    _ => return Value::Bool(false),
+                };
+
+                let b = match &args[1] {
+                    Value::Float(f) => *f,
+                    Value::Integer(i) => *i as f64,
+                    _ => return Value::Bool(false),
+                };
+
+                Value::Bool(a == b)
+            })),
+        );
+
+        interpreter.set_global(
             "print",
             Value::NativeFunction(Rc::new(move |args| {
                 let mut output = out.borrow_mut();

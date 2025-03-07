@@ -8,6 +8,7 @@ use std::rc::Rc;
 #[derive(Clone)]
 pub enum Value {
     Null,
+    Bool(bool),
     Integer(i64),
     Float(f64),
     String(String),
@@ -29,6 +30,7 @@ impl Hash for Value {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Value::Null => 0.hash(state),
+            Value::Bool(b) => b.hash(state),
             Value::Integer(i) => i.hash(state),
             Value::Float(f) => f.to_bits().hash(state),
             Value::String(s) => s.hash(state),
@@ -72,6 +74,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Null, Value::Null) => true,
+            (Value::Bool(b1), Value::Bool(b2)) => b1 == b2,
             (Value::Integer(i1), Value::Integer(i2)) => i1 == i2,
             (Value::Float(f1), Value::Float(f2)) => f1 == f2,
             (Value::String(s1), Value::String(s2)) => s1 == s2,
@@ -126,6 +129,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Value::Null => write!(f, "null"),
+            Value::Bool(b) => write!(f, "{}", b),
             Value::Integer(i) => write!(f, "{}", i),
             Value::Float(fl) => write!(f, "{:?}", fl),
             Value::String(s) => write!(f, "{}", s),
