@@ -158,30 +158,40 @@ mod tests {
     }
 
     fn run_tests(tests: impl Iterator<Item = Test>) {
+        let mut total_tokenized = 0;
         let mut failed_tokenized = 0;
+        let mut total_parsed = 0;
         let mut failed_parsed = 0;
+        let mut total_compiled = 0;
         let mut failed_compiled = 0;
+        let mut total_runs = 0;
         let mut failed_runs = 0;
-        let mut succeeded = 0;
 
         let classes = tests
-            .filter_map(|test| match tokenize::tokenize(&test.source) {
-                Ok(tokens) => Some((test, tokens)),
-                Err(error) => {
-                    eprintln!("failed to tokenize {}: {}", test.name, error);
-                    failed_tokenized += 1;
-                    None
+            .filter_map(|test| {
+                total_tokenized += 1;
+                match tokenize::tokenize(&test.source) {
+                    Ok(tokens) => Some((test, tokens)),
+                    Err(error) => {
+                        eprintln!("failed to tokenize {}: {}", test.name, error);
+                        failed_tokenized += 1;
+                        None
+                    }
                 }
             })
-            .filter_map(|(test, tokens)| match parse::parse(tokens) {
-                Ok(statements) => Some((test, statements)),
-                Err(error) => {
-                    eprintln!("failed to parse {}: {}", test.name, error);
-                    failed_parsed += 1;
-                    None
+            .filter_map(|(test, tokens)| {
+                total_parsed += 1;
+                match parse::parse(tokens) {
+                    Ok(statements) => Some((test, statements)),
+                    Err(error) => {
+                        eprintln!("failed to parse {}: {}", test.name, error);
+                        failed_parsed += 1;
+                        None
+                    }
                 }
             })
             .filter_map(|(test, statements)| {
+                total_compiled += 1;
                 match compile::compile(statements, HashMap::new(), "Test".to_owned()) {
                     Ok(class) => Some((test, class)),
                     Err(error) => {
@@ -194,21 +204,22 @@ mod tests {
 
         for (test, class) in classes {
             if run_test(&test, class) {
-                succeeded += 1;
+                total_runs += 1;
             } else {
                 failed_runs += 1;
             }
         }
 
-        let total = failed_tokenized + failed_parsed + failed_compiled + failed_runs + succeeded;
-        println!("{}/{} failed to tokenize", failed_tokenized, total);
-        println!("{}/{} failed to parse", failed_parsed, total);
-        println!("{}/{} failed to compile", failed_compiled, total);
-        println!("{}/{} failed to run", failed_runs, total);
-        println!("{}/{} succeeded", succeeded, total);
+        println!(
+            "{}/{} failed to tokenize",
+            failed_tokenized, total_tokenized
+        );
+        println!("{}/{} failed to parse", failed_parsed, total_parsed);
+        println!("{}/{} failed to compile", failed_compiled, total_compiled);
+        println!("{}/{} failed to run", failed_runs, total_runs);
 
-        if succeeded != total {
-            panic!();
+        if failed_tokenized != 0 || failed_parsed != 0 || failed_compiled != 0 || failed_runs != 0 {
+            panic!("some tests failed");
         }
     }
 
