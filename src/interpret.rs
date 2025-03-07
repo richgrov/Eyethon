@@ -111,8 +111,8 @@ impl fmt::Display for Value {
         match self {
             Value::Null => write!(f, "null"),
             Value::Integer(i) => write!(f, "{}", i),
-            Value::Float(fl) => write!(f, "{}", fl),
-            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Float(fl) => write!(f, "{:?}", fl),
+            Value::String(s) => write!(f, "{}", s),
             Value::Array(a) => {
                 write!(f, "[")?;
                 for (i, v) in a.iter().enumerate() {
