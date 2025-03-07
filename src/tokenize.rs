@@ -571,7 +571,6 @@ impl Tokenizer {
 
     fn string(&mut self, delim: char) -> Result<String, TokenizerError> {
         let mut text = String::with_capacity(8);
-        text.push(delim);
 
         while let Some(c) = self.peek_char() {
             if c == delim {
