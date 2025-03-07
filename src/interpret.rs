@@ -13,6 +13,7 @@ pub enum Value {
     Integer(i64),
     Float(f64),
     String(String),
+    Array(Vec<Value>),
     Dictionary(Rc<RefCell<HashMap<Value, Value>>>),
     Object {
         variables: Rc<RefCell<HashMap<Value, Value>>>,
@@ -28,6 +29,12 @@ impl Hash for Value {
             Value::Integer(i) => i.hash(state),
             Value::Float(f) => f.to_bits().hash(state),
             Value::String(s) => s.hash(state),
+            Value::Array(o) => {
+                o.len().hash(state);
+                for value in o {
+                    value.hash(state);
+                }
+            }
             Value::Dictionary(o) => {
                 let dict = o.borrow();
                 dict.len().hash(state);
@@ -108,6 +115,16 @@ impl fmt::Display for Value {
             Value::Integer(i) => write!(f, "{}", i),
             Value::Float(fl) => write!(f, "{}", fl),
             Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Array(a) => {
+                write!(f, "[")?;
+                for (i, v) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                write!(f, "]")
+            }
             Value::Dictionary(o) => {
                 write!(f, "{{")?;
                 for (i, (k, v)) in o.borrow().iter().enumerate() {
@@ -247,6 +264,10 @@ impl Interpreter {
                 }
                 Instruction::PushFloat(f) => {
                     stack.push(Value::Float(*f));
+                }
+                Instruction::MakeArray { len } => {
+                    let elements = stack.split_off(stack.len() - len);
+                    stack.push(Value::Array(elements));
                 }
                 Instruction::PushString(s) => {
                     stack.push(Value::String(s.clone()));

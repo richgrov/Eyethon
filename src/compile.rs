@@ -18,6 +18,7 @@ pub enum Instruction {
     PushFloat(f64),
     PushString(String),
     PushGlobal(String),
+    MakeArray { len: usize },
     Call { n_args: usize },
     Store,
     Return,
@@ -31,6 +32,7 @@ impl fmt::Display for Instruction {
             Instruction::PushFloat(fl) => write!(f, "pushf {}", fl),
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
             Instruction::PushGlobal(s) => write!(f, "pushg \"{}\"", s),
+            Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
             Instruction::Call { n_args } => write!(f, "call {}", n_args),
             Instruction::Store => write!(f, "store"),
             Instruction::Return => write!(f, "return"),
@@ -287,6 +289,13 @@ impl Compiler {
             }
             ExpressionType::Float(f) => {
                 instructions.push(Instruction::PushFloat(f));
+            }
+            ExpressionType::Array(expressions) => {
+                let len = expressions.len();
+                for expression in expressions {
+                    Self::evaluate_expression(instructions, expression)?;
+                }
+                instructions.push(Instruction::MakeArray { len });
             }
             ExpressionType::FunctionCall(expr) => {
                 let n_args = expr.args.len();
