@@ -275,6 +275,9 @@ impl Interpreter {
                 Instruction::PushFloat(f) => {
                     stack.push(Value::Float(*f));
                 }
+                Instruction::Pop => {
+                    stack.pop();
+                }
                 Instruction::MakeArray { len } => {
                     let elements = stack.split_off(stack.len() - len);
                     stack.push(Value::Array(elements));
