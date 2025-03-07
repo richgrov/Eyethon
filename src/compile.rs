@@ -15,6 +15,7 @@ pub struct ClassBytecode {
 #[derive(Debug, Clone)]
 pub enum Instruction {
     Duplicate(usize),
+    PushNull,
     PushInt(i64),
     PushFloat(f64),
     PushString(String),
@@ -32,6 +33,7 @@ impl fmt::Display for Instruction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Instruction::Duplicate(n) => write!(f, "dup {}", n),
+            Instruction::PushNull => write!(f, "pushn"),
             Instruction::PushInt(i) => write!(f, "pushi {}", i),
             Instruction::PushFloat(fl) => write!(f, "pushf {}", fl),
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
@@ -66,6 +68,7 @@ pub enum CompileError {
         column: usize,
         message: String,
     },
+    OnlyAllowedAtTopLevel,
 }
 
 impl fmt::Display for CompileError {
@@ -90,6 +93,9 @@ impl fmt::Display for CompileError {
                 column,
                 message,
             } => write!(f, "{}:{}: not implemented: {}", line, column, message),
+            CompileError::OnlyAllowedAtTopLevel => {
+                write!(f, "not allowed here")
+            }
         }
     }
 }
@@ -249,6 +255,7 @@ impl Compiler {
         let mut function_entry_points = HashMap::with_capacity(functions.len());
         for function in functions {
             function_entry_points.insert(function.name, instructions.len());
+            let num_args = function.args.len();
 
             self.function_scope_stack.push(FunctionScope {
                 num_upvalues: 1,
@@ -258,9 +265,15 @@ impl Compiler {
             for statement in function.statements {
                 self.handle_statement(&mut instructions, statement)?;
             }
-            instructions.push(Instruction::Return);
 
-            self.function_scope_stack.pop();
+            let func_scope = self.function_scope_stack.pop().unwrap();
+            let num_locals = func_scope.locals.len() - num_args;
+
+            for _ in 0..num_locals {
+                instructions.push(Instruction::Pop);
+            }
+
+            instructions.push(Instruction::Return);
         }
 
         Ok(ClassBytecode {
@@ -290,6 +303,27 @@ impl Compiler {
             StatementType::Expression(expr) => {
                 self.evaluate_expression(instructions, expr)?;
                 instructions.push(Instruction::Pop);
+            }
+            StatementType::Var {
+                konst,
+                static_,
+                identifier,
+                ty,
+                value,
+                getter,
+                setter,
+            } => {
+                if static_ || getter.is_some() || setter.is_some() {
+                    return Err(CompileError::OnlyAllowedAtTopLevel);
+                }
+
+                let func_scope = self.function_scope_stack.last_mut().unwrap();
+                func_scope.locals.push(identifier);
+                if let Some(val) = value {
+                    self.evaluate_expression(instructions, val)?;
+                } else {
+                    instructions.push(Instruction::PushNull);
+                }
             }
             other => {
                 return Err(CompileError::NotImplemented {
