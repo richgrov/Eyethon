@@ -1,3 +1,4 @@
+use core::num;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -19,6 +20,10 @@ pub enum Value {
         variables: Rc<RefCell<Vec<Value>>>,
         variable_names: HashMap<String, usize>,
         class_name: String,
+    },
+    Function {
+        address: usize,
+        upvalues: Vec<Value>,
     },
     NativeFunction(Rc<dyn Fn(Vec<Value>) -> Value>),
 }
@@ -53,6 +58,10 @@ impl Hash for Value {
                 let variables = variables.borrow();
                 variables.hash(state);
                 class_name.hash(state);
+            }
+            Value::Function { address, upvalues } => {
+                address.hash(state);
+                upvalues.hash(state);
             }
             Value::NativeFunction(func) => {
                 let ptr = Rc::<_>::as_ptr(func);
@@ -90,6 +99,16 @@ impl PartialEq for Value {
                 let vars2 = v2.borrow();
                 c1 == c2 && vars1.deref() == vars2.deref()
             }
+            (
+                Value::Function {
+                    address: addr1,
+                    upvalues: up1,
+                },
+                Value::Function {
+                    address: addr2,
+                    upvalues: up2,
+                },
+            ) => std::ptr::addr_eq(addr1, addr2) && up1.deref() == up2.deref(),
             (Value::NativeFunction(rc1), Value::NativeFunction(rc2)) => {
                 std::ptr::addr_eq(Rc::<_>::as_ptr(rc1), Rc::<_>::as_ptr(rc2))
             }
@@ -149,6 +168,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "}}")
             }
+            Value::Function { address, .. } => write!(f, "<function at {:p}>", address),
             Value::NativeFunction(_) => write!(f, "<native function>"),
         }
     }
@@ -227,7 +247,7 @@ impl Interpreter {
             class_name: class_name.to_owned(),
         };
 
-        self.call_function(&class.bytecode, &vec![this.clone()])?;
+        self.call_function(class_name, 0, &vec![this.clone()], &[])?;
 
         Ok(this)
     }
@@ -241,29 +261,36 @@ impl Interpreter {
             Value::Object { class_name, .. } => class_name,
             _ => panic!("not callable"),
         };
+        let class_name = class_name.to_owned();
 
         let classes = self.classes.clone();
         let classes = classes.borrow();
-        let class = &classes.get(class_name).unwrap();
+        let class = &classes.get(&class_name).unwrap();
 
         let func_addr = class
             .functions
             .get(method_name)
             .ok_or(RuntimeError::NoSuchMethod(method_name.to_owned()))?;
 
-        let instructions = &class.bytecode[*func_addr..];
-        let args = vec![this];
-
-        self.call_function(instructions, &args)
+        let upvalues = vec![this];
+        self.call_function(&class_name, *func_addr, &upvalues, &[])
     }
 
     fn call_function(
         &mut self,
-        instructions: &[Instruction],
+        class_name: &str,
+        func_address: usize,
+        upvalues: &[Value],
         args: &[Value],
     ) -> Result<Option<Value>, RuntimeError> {
+        let classes = self.classes.clone();
+        let classes = classes.borrow();
+        let class = &classes.get(class_name).unwrap();
+        let instructions = &class.bytecode[func_address..];
+
         let mut pc = 0;
-        let mut stack = Vec::new();
+        let mut stack = Vec::with_capacity(upvalues.len() + args.len());
+        stack.extend_from_slice(upvalues);
         stack.extend_from_slice(args);
 
         while pc < instructions.len() {
@@ -301,14 +328,36 @@ impl Interpreter {
                     let member = variables.borrow()[*index].clone();
                     stack.push(member);
                 }
+                Instruction::PushMemberFunction(name) => {
+                    let this = &stack[0];
+                    let Value::Object { class_name, .. } = this else {
+                        panic!();
+                    };
+
+                    let classes = self.classes.borrow();
+                    let class = classes.get(class_name).unwrap();
+
+                    let address = class.functions.get(name).unwrap();
+                    stack.push(Value::Function {
+                        address: *address,
+                        upvalues: vec![this.clone()],
+                    });
+                }
                 Instruction::Call { n_args } => {
                     let callee = stack.pop().unwrap();
-                    if let Value::NativeFunction(func) = callee {
-                        let args = stack.split_off(stack.len() - n_args);
-                        let result = func(args);
-                        stack.push(result);
-                    } else {
-                        return Err(RuntimeError::NotCallable);
+                    match callee {
+                        Value::Function { address, upvalues } => {
+                            let args = stack.split_off(stack.len() - n_args);
+                            let result =
+                                self.call_function(class_name, address, &upvalues, &args)?;
+                            stack.push(result.unwrap_or(Value::Null));
+                        }
+                        Value::NativeFunction(func) => {
+                            let args = stack.split_off(stack.len() - n_args);
+                            let result = func(args);
+                            stack.push(result);
+                        }
+                        _ => return Err(RuntimeError::NotCallable),
                     }
                 }
                 Instruction::Store => {
@@ -338,9 +387,10 @@ impl Interpreter {
                     }
                 }
                 Instruction::Return => {
-                    if stack.len() == args.len() {
+                    let num_inputs = upvalues.len() + args.len();
+                    if stack.len() == num_inputs {
                         return Ok(None);
-                    } else if stack.len() == args.len() + 1 {
+                    } else if stack.len() == num_inputs + 1 {
                         return Ok(stack.pop());
                     } else {
                         return Err(RuntimeError::BadStack);

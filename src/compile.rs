@@ -20,6 +20,7 @@ pub enum Instruction {
     PushString(String),
     PushGlobal(String),
     PushMember(usize),
+    PushMemberFunction(String),
     Pop,
     MakeArray { len: usize },
     Call { n_args: usize },
@@ -36,6 +37,7 @@ impl fmt::Display for Instruction {
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
             Instruction::PushGlobal(s) => write!(f, "pushg \"{}\"", s),
             Instruction::PushMember(n) => write!(f, "pushmem {}", n),
+            Instruction::PushMemberFunction(s) => write!(f, "pushmemf \"{}\"", s),
             Instruction::Pop => write!(f, "pop"),
             Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
             Instruction::Call { n_args } => write!(f, "call {}", n_args),
@@ -190,6 +192,7 @@ impl Compiler {
                     ty: ExpressionType::Function(func),
                     ..
                 }) => {
+                    self.function_entry_points.insert(func.name.clone(), 0);
                     functions.push(func);
                 }
                 StatementType::Var {
@@ -300,6 +303,11 @@ impl Compiler {
                     .position(|var| *var == identifier)
                 {
                     instructions.push(Instruction::PushMember(var_idx));
+                    return Ok(());
+                }
+
+                if let Some(_) = self.function_entry_points.get(&identifier) {
+                    instructions.push(Instruction::PushMemberFunction(identifier));
                     return Ok(());
                 }
 
