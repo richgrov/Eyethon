@@ -45,9 +45,7 @@ pub enum Error {
 mod tests {
     use std::cell::RefCell;
     use std::collections::HashMap;
-    use std::ops::{Deref, DerefMut};
     use std::rc::Rc;
-    use std::sync::Mutex;
 
     use interpret::Value;
 
@@ -92,30 +90,12 @@ mod tests {
             })
     }
 
-    fn run_test(test: &Test) -> bool {
-        let tokens = match tokenize::tokenize(&test.source) {
-            Ok(t) => t,
-            Err(e) => {
-                eprintln!("tokenization for {} failed: {}", test.name, e);
-                return false;
-            }
-        };
-
-        let ast = match parse::parse(tokens) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("parse {} failed: {}", test.name, e);
-                return false;
-            }
-        };
-
-        let class = match compile::compile(ast, HashMap::new(), "Test".to_owned()) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("compile {} failed: {}", test.name, e);
-                return false;
-            }
-        };
+    fn run_test(test: &Test, class: compile::ClassBytecode) -> bool {
+        println!("{} bytecode:", test.name);
+        for (i, instr) in class.bytecode.iter().enumerate() {
+            println!("{:04} {}", i, instr);
+        }
+        println!("{:?}", class.functions);
 
         let class_name = class.name.clone();
 
@@ -177,37 +157,68 @@ mod tests {
         true
     }
 
-    #[test]
-    fn parser_features() {
-        let mut failed = 0;
-        let mut total = 0;
+    fn run_tests(tests: impl Iterator<Item = Test>) {
+        let mut failed_tokenized = 0;
+        let mut failed_parsed = 0;
+        let mut failed_compiled = 0;
+        let mut failed_runs = 0;
+        let mut succeeded = 0;
 
-        for test in get_tests("parser/features") {
-            if !run_test(&test) {
-                failed += 1;
+        let classes = tests
+            .filter_map(|test| match tokenize::tokenize(&test.source) {
+                Ok(tokens) => Some((test, tokens)),
+                Err(error) => {
+                    eprintln!("failed to tokenize {}: {}", test.name, error);
+                    failed_tokenized += 1;
+                    None
+                }
+            })
+            .filter_map(|(test, tokens)| match parse::parse(tokens) {
+                Ok(statements) => Some((test, statements)),
+                Err(error) => {
+                    eprintln!("failed to parse {}: {}", test.name, error);
+                    failed_parsed += 1;
+                    None
+                }
+            })
+            .filter_map(|(test, statements)| {
+                match compile::compile(statements, HashMap::new(), "Test".to_owned()) {
+                    Ok(class) => Some((test, class)),
+                    Err(error) => {
+                        eprintln!("failed to compile {}: {}", test.name, error);
+                        failed_compiled += 1;
+                        None
+                    }
+                }
+            });
+
+        for (test, class) in classes {
+            if run_test(&test, class) {
+                succeeded += 1;
+            } else {
+                failed_runs += 1;
             }
-            total += 1;
         }
 
-        if failed > 0 || total == 0 {
-            panic!("{}/{} cases failed", failed, total);
+        let total = failed_tokenized + failed_parsed + failed_compiled + failed_runs + succeeded;
+        println!("{}/{} failed to tokenize", failed_tokenized, total);
+        println!("{}/{} failed to parse", failed_parsed, total);
+        println!("{}/{} failed to compile", failed_compiled, total);
+        println!("{}/{} failed to run", failed_runs, total);
+        println!("{}/{} succeeded", succeeded, total);
+
+        if succeeded != total {
+            panic!();
         }
     }
 
     #[test]
+    fn parser_features() {
+        run_tests(get_tests("parser/features"));
+    }
+
+    #[test]
     fn runtime_features() {
-        let mut failed = 0;
-        let mut total = 0;
-
-        for test in get_tests("runtime/features") {
-            if !run_test(&test) {
-                failed += 1;
-            }
-            total += 1;
-        }
-
-        if failed > 0 || total == 0 {
-            panic!("{}/{} cases failed", failed, total);
-        }
+        run_tests(get_tests("parser/features"));
     }
 }
