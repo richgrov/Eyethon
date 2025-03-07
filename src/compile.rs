@@ -12,13 +12,14 @@ pub struct ClassBytecode {
     pub member_variables: Vec<String>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instruction {
     Duplicate(usize),
     PushInt(i64),
     PushFloat(f64),
     PushString(String),
     PushGlobal(String),
+    PushMember(usize),
     Pop,
     MakeArray { len: usize },
     Call { n_args: usize },
@@ -34,6 +35,7 @@ impl fmt::Display for Instruction {
             Instruction::PushFloat(fl) => write!(f, "pushf {}", fl),
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
             Instruction::PushGlobal(s) => write!(f, "pushg \"{}\"", s),
+            Instruction::PushMember(n) => write!(f, "pushmem {}", n),
             Instruction::Pop => write!(f, "pop"),
             Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
             Instruction::Call { n_args } => write!(f, "call {}", n_args),
@@ -104,6 +106,7 @@ struct Compiler {
     fallback_class_name: String,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
+    member_variables: Vec<String>,
     function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<()>,
 }
@@ -120,6 +123,7 @@ impl Compiler {
             class_name: None,
             extends: None,
             non_class_name_statement_seen: false,
+            member_variables: Vec::new(),
             function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
         }
@@ -130,7 +134,6 @@ impl Compiler {
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
         let mut instructions = Vec::new();
-        let mut member_variables = Vec::new();
         let mut functions = Vec::new();
 
         for statement in statements {
@@ -198,7 +201,7 @@ impl Compiler {
                     getter,
                     setter,
                 } => {
-                    member_variables.push(identifier.clone());
+                    self.member_variables.push(identifier.clone());
 
                     let Some(val) = value else {
                         continue;
@@ -208,7 +211,7 @@ impl Compiler {
                     instructions.push(Instruction::PushString(identifier));
 
                     let mut expression_instructions = Vec::new();
-                    Self::evaluate_expression(&mut expression_instructions, val)?;
+                    self.evaluate_expression(&mut expression_instructions, val)?;
                     instructions.extend(expression_instructions);
 
                     instructions.push(Instruction::Store);
@@ -249,7 +252,7 @@ impl Compiler {
             extends: self.extends,
             bytecode: instructions,
             functions: function_entry_points,
-            member_variables,
+            member_variables: self.member_variables,
         })
     }
 
@@ -269,7 +272,7 @@ impl Compiler {
                 self.handle_statement(instructions, *target)?;
             }
             StatementType::Expression(expr) => {
-                Self::evaluate_expression(instructions, expr)?;
+                self.evaluate_expression(instructions, expr)?;
                 instructions.push(Instruction::Pop);
             }
             other => {
@@ -285,10 +288,23 @@ impl Compiler {
     }
 
     fn evaluate_expression(
+        &mut self,
         instructions: &mut Vec<Instruction>,
         expression: Expression,
     ) -> Result<(), CompileError> {
         match expression.ty {
+            ExpressionType::Identifier(identifier) => {
+                if let Some(var_idx) = self
+                    .member_variables
+                    .iter()
+                    .position(|var| *var == identifier)
+                {
+                    instructions.push(Instruction::PushMember(var_idx));
+                    return Ok(());
+                }
+
+                instructions.push(Instruction::PushGlobal(identifier));
+            }
             ExpressionType::String(str) => {
                 instructions.push(Instruction::PushString(str));
             }
@@ -301,17 +317,17 @@ impl Compiler {
             ExpressionType::Array(expressions) => {
                 let len = expressions.len();
                 for expression in expressions {
-                    Self::evaluate_expression(instructions, expression)?;
+                    self.evaluate_expression(instructions, expression)?;
                 }
                 instructions.push(Instruction::MakeArray { len });
             }
             ExpressionType::FunctionCall(expr) => {
                 let n_args = expr.args.len();
                 for arg in expr.args {
-                    Self::evaluate_expression(instructions, arg)?;
+                    self.evaluate_expression(instructions, arg)?;
                 }
 
-                Self::evaluate_expression(instructions, *expr.callee)?;
+                self.evaluate_expression(instructions, *expr.callee)?;
 
                 instructions.push(Instruction::Call { n_args });
             }

@@ -165,6 +165,7 @@ pub enum RuntimeError {
     NotSettable(Value),
     NotCallable,
     NoSuchMethod(String),
+    UndefinedGlobal(String),
     BadStack,
     OutOfInstructions,
 }
@@ -175,6 +176,7 @@ impl fmt::Display for RuntimeError {
             RuntimeError::NotSettable(value) => write!(f, "{} is not settable", value),
             RuntimeError::NotCallable => write!(f, "not callable"),
             RuntimeError::NoSuchMethod(name) => write!(f, "no such method: {}", name),
+            RuntimeError::UndefinedGlobal(name) => write!(f, "undefined global {}", name),
             RuntimeError::BadStack => write!(f, "bad stack"),
             RuntimeError::OutOfInstructions => write!(f, "out of instructions"),
         }
@@ -286,8 +288,18 @@ impl Interpreter {
                     stack.push(Value::String(s.clone()));
                 }
                 Instruction::PushGlobal(identifier) => {
-                    let global = self.globals.get(identifier).unwrap();
+                    let Some(global) = self.globals.get(identifier) else {
+                        return Err(RuntimeError::UndefinedGlobal(identifier.to_owned()));
+                    };
                     stack.push(global.clone());
+                }
+                Instruction::PushMember(index) => {
+                    let this = &stack[0];
+                    let Value::Object { variables, .. } = this else {
+                        panic!();
+                    };
+                    let member = variables.borrow()[*index].clone();
+                    stack.push(member);
                 }
                 Instruction::Call { n_args } => {
                     let callee = stack.pop().unwrap();
