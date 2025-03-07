@@ -222,6 +222,8 @@ pub enum BinaryOperator {
     NotEqual,
     And,
     Or,
+    In,
+    NotIn,
 }
 
 impl TryFrom<TokenType> for BinaryOperator {
@@ -242,6 +244,7 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::BangEq => Ok(BinaryOperator::NotEqual),
             TokenType::And | TokenType::DoubleAmpersand => Ok(BinaryOperator::And),
             TokenType::Or | TokenType::DoublePipe => Ok(BinaryOperator::Or),
+            TokenType::In => Ok(BinaryOperator::In),
             _ => Err(()),
         }
     }
@@ -1327,7 +1330,7 @@ impl Parser {
     }
 
     fn logical(&mut self) -> Result<Expression, ParseError> {
-        let mut expr = self.comparison()?;
+        let mut expr = self.in_expr()?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -1344,13 +1347,58 @@ impl Parser {
                         column: expr.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expr),
-                            rhs: Box::new(self.comparison()?),
+                            rhs: Box::new(self.in_expr()?),
                             operator: op,
                         },
                     };
                 }
                 _ => break,
             }
+        }
+
+        Ok(expr)
+    }
+
+    fn in_expr(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.comparison()?;
+
+        match self.peek_tok() {
+            Some(Token {
+                ty: TokenType::Not, ..
+            }) => {
+                if let Some(Token {
+                    ty: TokenType::In, ..
+                }) = self.peek_n(2)
+                {
+                    self.consume_token();
+                    self.consume_token();
+
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.comparison()?),
+                            operator: BinaryOperator::NotIn,
+                        },
+                    };
+                }
+            }
+            Some(Token {
+                ty: TokenType::In, ..
+            }) => {
+                self.consume_token();
+                expr = Expression {
+                    line: expr.line,
+                    column: expr.column,
+                    ty: ExpressionType::Binary {
+                        lhs: Box::new(expr),
+                        rhs: Box::new(self.comparison()?),
+                        operator: BinaryOperator::In,
+                    },
+                };
+            }
+            _ => {}
         }
 
         Ok(expr)
