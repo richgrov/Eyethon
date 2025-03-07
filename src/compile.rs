@@ -102,6 +102,11 @@ struct VariableInfo {
     ty: VariableType,
 }
 
+struct FunctionScope {
+    num_upvalues: usize,
+    locals: Vec<String>,
+}
+
 struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
@@ -110,7 +115,7 @@ struct Compiler {
     non_class_name_statement_seen: bool,
     member_variables: Vec<String>,
     function_entry_points: HashMap<String, usize>,
-    function_scope_stack: Vec<()>,
+    function_scope_stack: Vec<FunctionScope>,
 }
 
 impl Compiler {
@@ -244,10 +249,18 @@ impl Compiler {
         let mut function_entry_points = HashMap::with_capacity(functions.len());
         for function in functions {
             function_entry_points.insert(function.name, instructions.len());
+
+            self.function_scope_stack.push(FunctionScope {
+                num_upvalues: 1,
+                locals: function.args.into_iter().map(|arg| arg.name).collect(),
+            });
+
             for statement in function.statements {
                 self.handle_statement(&mut instructions, statement)?;
             }
             instructions.push(Instruction::Return);
+
+            self.function_scope_stack.pop();
         }
 
         Ok(ClassBytecode {
@@ -297,6 +310,13 @@ impl Compiler {
     ) -> Result<(), CompileError> {
         match expression.ty {
             ExpressionType::Identifier(identifier) => {
+                let func_scope = self.function_scope_stack.last().unwrap();
+
+                if let Some(var_idx) = func_scope.locals.iter().position(|var| *var == identifier) {
+                    instructions.push(Instruction::Duplicate(var_idx + func_scope.num_upvalues));
+                    return Ok(());
+                }
+
                 if let Some(var_idx) = self
                     .member_variables
                     .iter()
