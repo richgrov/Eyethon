@@ -16,7 +16,8 @@ pub enum Value {
     Array(Vec<Value>),
     Dictionary(Rc<RefCell<HashMap<Value, Value>>>),
     Object {
-        variables: Rc<RefCell<HashMap<Value, Value>>>,
+        variables: Rc<RefCell<Vec<Value>>>,
+        variable_names: HashMap<String, usize>,
         class_name: String,
     },
     NativeFunction(Rc<dyn Fn(Vec<Value>) -> Value>),
@@ -47,15 +48,10 @@ impl Hash for Value {
             Value::Object {
                 variables,
                 class_name,
+                ..
             } => {
-                let dict = variables.borrow();
-                dict.len().hash(state);
-
-                for (key, value) in dict.deref() {
-                    key.hash(state);
-                    value.hash(state);
-                }
-
+                let variables = variables.borrow();
+                variables.hash(state);
                 class_name.hash(state);
             }
             Value::NativeFunction(func) => {
@@ -82,15 +78,17 @@ impl PartialEq for Value {
                 Value::Object {
                     variables: v1,
                     class_name: c1,
+                    ..
                 },
                 Value::Object {
                     variables: v2,
                     class_name: c2,
+                    ..
                 },
             ) => {
-                let dict1 = v1.borrow();
-                let dict2 = v2.borrow();
-                c1 == c2 && dict1.deref() == dict2.deref()
+                let vars1 = v1.borrow();
+                let vars2 = v2.borrow();
+                c1 == c2 && vars1.deref() == vars2.deref()
             }
             (Value::NativeFunction(rc1), Value::NativeFunction(rc2)) => {
                 std::ptr::addr_eq(Rc::<_>::as_ptr(rc1), Rc::<_>::as_ptr(rc2))
@@ -137,14 +135,17 @@ impl fmt::Display for Value {
             }
             Value::Object {
                 variables,
+                variable_names,
                 class_name,
             } => {
+                let vars = variables.borrow();
+
                 write!(f, "{} {{", class_name)?;
-                for (i, (k, v)) in variables.borrow().iter().enumerate() {
+                for (i, (name, index)) in variable_names.iter().enumerate() {
                     if i > 0 {
                         write!(f, ", ")?;
                     }
-                    write!(f, "{}: {}", k, v)?;
+                    write!(f, "{}: {}", name, vars[*index])?;
                 }
                 write!(f, "}}")
             }
@@ -197,7 +198,8 @@ impl Interpreter {
         self.class_objects.insert(
             class.name.clone(),
             Value::Object {
-                variables: Rc::new(RefCell::new(HashMap::new())),
+                variables: Rc::new(RefCell::new(Vec::new())),
+                variable_names: HashMap::new(),
                 class_name: "".to_owned(),
             },
         );
@@ -207,15 +209,23 @@ impl Interpreter {
     }
 
     pub fn new_instance(&mut self, class_name: &str) -> Result<Value, RuntimeError> {
+        let classes = self.classes.clone();
+        let classes = classes.borrow();
+        let class = classes.get(class_name).unwrap();
+
+        let num_members = class.member_variables.len();
+        let mut variable_names = HashMap::with_capacity(num_members);
+        for (i, name) in class.member_variables.iter().enumerate() {
+            variable_names.insert(name.to_owned(), i);
+        }
+
         let this = Value::Object {
-            variables: Rc::new(RefCell::new(HashMap::new())),
+            variables: Rc::new(RefCell::new(vec![Value::Null; num_members])),
+            variable_names,
             class_name: class_name.to_owned(),
         };
 
-        let classes = self.classes.clone();
-        let classes = classes.borrow();
-        let instructions = &classes.get(class_name).unwrap().bytecode;
-        self.call_function(instructions, &vec![this.clone()])?;
+        self.call_function(&class.bytecode, &vec![this.clone()])?;
 
         Ok(this)
     }
@@ -295,8 +305,17 @@ impl Interpreter {
                         Value::Dictionary(dict) => {
                             dict.borrow_mut().insert(key, val);
                         }
-                        Value::Object { variables, .. } => {
-                            variables.borrow_mut().insert(key, val);
+                        Value::Object {
+                            variables,
+                            variable_names,
+                            ..
+                        } => {
+                            let Value::String(attribute) = key else {
+                                panic!();
+                            };
+
+                            let index = variable_names.get(&attribute).unwrap();
+                            variables.borrow_mut()[*index] = val;
                         }
                         other => {
                             return Err(RuntimeError::NotSettable(other));

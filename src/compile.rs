@@ -9,6 +9,7 @@ pub struct ClassBytecode {
     pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
     pub functions: HashMap<String, usize>,
+    pub member_variables: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -127,6 +128,7 @@ impl Compiler {
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
         let mut instructions = Vec::new();
+        let mut member_variables = Vec::new();
         let mut functions = Vec::new();
 
         for statement in statements {
@@ -194,6 +196,8 @@ impl Compiler {
                     getter,
                     setter,
                 } => {
+                    member_variables.push(identifier.clone());
+
                     let Some(val) = value else {
                         continue;
                     };
@@ -243,6 +247,7 @@ impl Compiler {
             extends: self.extends,
             bytecode: instructions,
             functions: function_entry_points,
+            member_variables,
         })
     }
 
