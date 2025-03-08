@@ -16,6 +16,7 @@ pub struct ClassBytecode {
 pub enum Instruction {
     Duplicate(usize),
     PushNull,
+    PushBool(bool),
     PushInt(i64),
     PushFloat(f64),
     PushString(String),
@@ -34,6 +35,7 @@ impl fmt::Display for Instruction {
         match self {
             Instruction::Duplicate(n) => write!(f, "dup {}", n),
             Instruction::PushNull => write!(f, "pushn"),
+            Instruction::PushBool(b) => write!(f, "pushb {}", b),
             Instruction::PushInt(i) => write!(f, "pushi {}", i),
             Instruction::PushFloat(fl) => write!(f, "pushf {}", fl),
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
@@ -367,8 +369,14 @@ impl Compiler {
 
                 instructions.push(Instruction::PushGlobal(identifier));
             }
+            ExpressionType::Null => {
+                instructions.push(Instruction::PushNull);
+            }
             ExpressionType::String(str) => {
                 instructions.push(Instruction::PushString(str));
+            }
+            ExpressionType::Bool(b) => {
+                instructions.push(Instruction::PushBool(b));
             }
             ExpressionType::Integer(i) => {
                 instructions.push(Instruction::PushInt(i));

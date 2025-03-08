@@ -137,6 +137,9 @@ impl Interpreter {
                 Instruction::PushNull => {
                     stack.push(Value::Null);
                 }
+                Instruction::PushBool(b) => {
+                    stack.push(Value::Bool(*b));
+                }
                 Instruction::PushInt(i) => {
                     stack.push(Value::Integer(*i));
                 }

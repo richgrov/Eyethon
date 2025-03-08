@@ -174,7 +174,9 @@ pub enum ExpressionType {
     Identifier(String),
     String(String),
     StringName(String),
+    Null,
     Integer(i64),
+    Bool(bool),
     Float(f64),
     Array(Vec<Expression>),
     Super,
@@ -1597,6 +1599,9 @@ impl Parser {
                     ExpressionType::Preload(path)
                 }
                 TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
+                TokenType::Null => ExpressionType::Null,
+                TokenType::True => ExpressionType::Bool(true),
+                TokenType::False => ExpressionType::Bool(false),
                 TokenType::String(ref string) => ExpressionType::String(string.clone()),
                 TokenType::StringName(ref string) => ExpressionType::StringName(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
