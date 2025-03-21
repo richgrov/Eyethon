@@ -123,6 +123,11 @@ pub enum StatementType {
         name: Option<String>,
         values: Vec<(String, Option<i64>)>,
     },
+    When {
+        phrase: String,
+        parameters: Vec<(usize, String)>,
+        statements: Vec<Statement>,
+    },
     Pass,
 }
 
@@ -532,6 +537,25 @@ impl Parser {
                 self.consume_token();
                 return Ok(Statement {
                     ty: StatementType::Pass,
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
+            }
+            TokenType::When { phrase, parameters } => {
+                self.consume_token();
+
+                let statements = if self.consume_if(TokenType::Eol) {
+                    self.parse_block_scope()?
+                } else {
+                    self.parse_single_line_scope()?
+                };
+
+                return Ok(Statement {
+                    ty: StatementType::When {
+                        phrase,
+                        parameters,
+                        statements,
+                    },
                     line: first_tok.line,
                     column: first_tok.column,
                 });
