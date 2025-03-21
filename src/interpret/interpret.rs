@@ -97,7 +97,7 @@ impl Interpreter {
         let class = &classes.get(&class_name).unwrap();
 
         let func_addr = class
-            .functions
+            .handler_addresses
             .get(id)
             .ok_or(RuntimeError::NoSuchMethod(id.to_string()))?;
 
@@ -176,7 +176,7 @@ impl Interpreter {
 
                         let classes = self.classes.borrow();
                         let class = classes.get(class_name).unwrap();
-                        *class.functions.get(*action).unwrap()
+                        *class.handler_addresses.get(*action).unwrap()
                     };
 
                     let upvalues = vec![this.clone()];

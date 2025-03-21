@@ -16,8 +16,7 @@ pub struct ClassBytecode {
     pub name: String,
     pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
-    pub when_phrases: Vec<Embedding>,
-    pub functions: Vec<usize>,
+    pub handler_addresses: Vec<usize>,
     pub member_variables: Vec<String>,
 }
 
@@ -73,6 +72,7 @@ pub enum CompileError {
     },
     UnknownAction {
         phrase: String,
+        suggestion: Option<String>,
         line: usize,
         column: usize,
     },
@@ -97,10 +97,15 @@ impl fmt::Display for CompileError {
             }
             CompileError::UnknownAction {
                 phrase,
+                suggestion,
                 line,
                 column,
             } => {
-                write!(f, "{}:{}: don't know how to '{}'", line, column, phrase)
+                if let Some(s) = suggestion {
+                    write!(f, "{}:{}: don't know how to '{}'. Note: found 'when {}', but it wasn't similar enough to the command", line, column, phrase, s)
+                } else {
+                    write!(f, "{}:{}: don't know how to '{}'", line, column, phrase)
+                }
             }
             CompileError::NotAllowedAtTopLevel(statement) => {
                 write!(
@@ -134,6 +139,13 @@ struct FunctionScope {
     locals: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
+struct Handler {
+    phrase: String,
+    embedding: Embedding,
+    address: usize,
+}
+
 struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
@@ -141,8 +153,7 @@ struct Compiler {
     extends: Option<String>,
     non_class_name_statement_seen: bool,
     member_variables: Vec<String>,
-    when_phrases: Vec<Embedding>,
-    function_entry_points: Vec<usize>,
+    when_handlers: Vec<Handler>,
     function_scope_stack: Vec<FunctionScope>,
 
     tokenizer: Tokenizer,
@@ -150,7 +161,8 @@ struct Compiler {
 }
 
 impl Compiler {
-    const MINIMUM_SIMILARITY: f32 = 0.5;
+    const MINIMUM_SIMILARITY: f32 = 0.8;
+    const SIMILARITY_SUGGESTION_THRESHOLD: f32 = 0.5;
 
     pub fn new(
         annotation_handlers: HashMap<String, AnnotationHandler>,
@@ -176,8 +188,7 @@ impl Compiler {
             extends: None,
             non_class_name_statement_seen: false,
             member_variables: Vec::new(),
-            when_phrases: Vec::with_capacity(8),
-            function_entry_points: Vec::with_capacity(8),
+            when_handlers: Vec::with_capacity(8),
             function_scope_stack: Vec::with_capacity(4),
 
             tokenizer,
@@ -190,7 +201,7 @@ impl Compiler {
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
         let mut instructions = Vec::new();
-        let mut functions = Vec::new();
+        let mut handlers = Vec::with_capacity(8);
 
         for statement in statements {
             match statement.ty {
@@ -272,10 +283,12 @@ impl Compiler {
                     statements,
                 } => {
                     let embedding = self.embed(&phrase).unwrap();
-
-                    let id = self.when_phrases.len();
-                    self.when_phrases.push(embedding);
-                    functions.push((id, parameters, statements));
+                    self.when_handlers.push(Handler {
+                        phrase,
+                        embedding,
+                        address: 0,
+                    });
+                    handlers.push((parameters, statements));
                 }
                 StatementType::Pass
                 | StatementType::If { .. }
@@ -299,9 +312,8 @@ impl Compiler {
 
         instructions.push(Instruction::Return);
 
-        let mut function_entry_points = Vec::with_capacity(functions.len());
-        for (id, parameters, statements) in functions {
-            function_entry_points.push(instructions.len());
+        for (i, (parameters, statements)) in handlers.into_iter().enumerate() {
+            self.when_handlers[i].address = instructions.len();
             let num_args = parameters.len();
 
             self.function_scope_stack.push(FunctionScope {
@@ -327,8 +339,11 @@ impl Compiler {
             name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
             bytecode: instructions,
-            when_phrases: self.when_phrases,
-            functions: function_entry_points,
+            handler_addresses: self
+                .when_handlers
+                .into_iter()
+                .map(|handler| handler.address)
+                .collect(),
             member_variables: self.member_variables,
         })
     }
@@ -357,9 +372,18 @@ impl Compiler {
                 let embedding = self.embed(&phrase).unwrap();
                 let (handler_idx, similarity) = self.lookup_embedding(&embedding);
 
-                if handler_idx == -1 || similarity < Self::MINIMUM_SIMILARITY {
+                if similarity < Self::MINIMUM_SIMILARITY {
+                    let suggestion = if handler_idx != -1
+                        && similarity >= Self::SIMILARITY_SUGGESTION_THRESHOLD
+                    {
+                        Some(self.when_handlers[handler_idx as usize].phrase.clone())
+                    } else {
+                        None
+                    };
+
                     return Err(CompileError::UnknownAction {
                         phrase,
+                        suggestion,
                         line: statement.line,
                         column: statement.column,
                     });
@@ -524,7 +548,8 @@ impl Compiler {
         let mut best_idx = -1;
         let mut best_similarity = f32::NEG_INFINITY;
 
-        for (i, emb) in self.when_phrases.iter().enumerate() {
+        for (i, handler) in self.when_handlers.iter().enumerate() {
+            let emb = &handler.embedding;
             let cosine_similarity = emb.dot(embedding) / (emb.norm() * embedding.norm());
 
             if cosine_similarity > best_similarity {
