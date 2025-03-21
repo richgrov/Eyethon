@@ -1,6 +1,12 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use ndarray::{Array, Array1};
+use ndarray_linalg::Norm;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::value::Tensor;
+use tokenizers::Tokenizer;
+
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
 #[derive(Debug)]
@@ -124,6 +130,9 @@ struct Compiler {
     member_variables: Vec<String>,
     function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<FunctionScope>,
+
+    tokenizer: Tokenizer,
+    ort_session: ort::session::Session,
 }
 
 impl Compiler {
@@ -131,6 +140,18 @@ impl Compiler {
         annotation_handlers: HashMap<String, AnnotationHandler>,
         fallback_class_name: String,
     ) -> Compiler {
+        let tokenizer = Tokenizer::from_bytes(include_bytes!("./tokenizer.json")).unwrap();
+        ort::init().commit().unwrap();
+
+        let ort_session = ort::session::Session::builder()
+            .unwrap()
+            .with_optimization_level(GraphOptimizationLevel::Level1)
+            .unwrap()
+            .with_intra_threads(1)
+            .unwrap()
+            .commit_from_memory(include_bytes!("./model.onnx"))
+            .unwrap();
+
         Compiler {
             annotation_handlers,
             fallback_class_name,
@@ -141,6 +162,9 @@ impl Compiler {
             member_variables: Vec::new(),
             function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
+
+            tokenizer,
+            ort_session,
         }
     }
 
@@ -411,6 +435,45 @@ impl Compiler {
         }
 
         Ok(())
+    }
+
+    fn embed(&self, text: &str) -> Result<ndarray::Array1<f32>, ort::Error> {
+        let encoding = self.tokenizer.encode(text, true).unwrap();
+        let ids = encoding.get_ids();
+        let attention = encoding.get_attention_mask();
+
+        let id_tensor = Tensor::from_array((
+            [1, ids.len()],
+            ids.iter().map(|x| *x as i64).collect::<Vec<_>>(),
+        ))?;
+
+        let attention_tensor = Tensor::from_array((
+            [1, attention.len()],
+            attention.iter().map(|x| *x as i64).collect::<Vec<_>>(),
+        ))?;
+
+        let result = self
+            .ort_session
+            .run(ort::inputs![id_tensor, attention_tensor]?)?;
+
+        let output = result[0].try_extract_tensor::<f32>()?;
+        let att = Array::from_shape_vec(
+            [1, attention.len()],
+            attention.iter().map(|x| *x as f32).collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let mut mean = Array1::<f32>::zeros([768]);
+        for (token_idx, weight) in attention.iter().enumerate() {
+            let token = output
+                .slice(ndarray::s![0, token_idx, ..])
+                .mapv(|v| v * (*weight as f32));
+            mean += &token;
+        }
+        mean /= att.sum();
+
+        let norm = mean.norm();
+        return Ok(mean / norm);
     }
 }
 
