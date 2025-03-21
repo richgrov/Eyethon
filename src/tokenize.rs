@@ -9,8 +9,12 @@ pub struct Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    Indent { level: usize },
-    Comment { text: String },
+    Indent {
+        level: usize,
+    },
+    Comment {
+        text: String,
+    },
     Identifier(String),
     String(String),
     StringName(String),
@@ -24,7 +28,10 @@ pub enum TokenType {
     For,
     While,
     Match,
-    When,
+    When {
+        phrase: String,
+        parameters: Vec<(usize, String)>,
+    },
     Break,
     Continue,
     Pass,
@@ -123,7 +130,7 @@ impl TokenType {
             For => "for statement",
             While => "while statement",
             Match => "match statement",
-            When => "when statement",
+            When { .. } => "when statement",
             Break => "break",
             Continue => "continue",
             Pass => "pass",
@@ -241,6 +248,7 @@ pub enum TokenizerErrorType {
     InvalidNumber,
     UnterminatedString { delim: char },
     InvalidLogicalLine,
+    UnexpectedEof,
 }
 
 impl fmt::Display for TokenizerError {
@@ -254,6 +262,9 @@ impl fmt::Display for TokenizerError {
             }
             TokenizerErrorType::InvalidLogicalLine => {
                 format!("expected end of line after '\\'")
+            }
+            TokenizerErrorType::UnexpectedEof => {
+                format!("unexpected end of file")
             }
         };
 
@@ -455,7 +466,7 @@ impl Tokenizer {
                     self.skip_line_whitespace();
                 }
 
-                other if other.is_alphabetic() || other == '_' => break Ok(self.identifier(other)),
+                other if other.is_alphabetic() || other == '_' => break self.identifier(other),
 
                 other if other.is_ascii_digit() => break self.number(other),
 
@@ -521,7 +532,7 @@ impl Tokenizer {
         self.mk_token(TokenType::Comment { text })
     }
 
-    fn identifier(&mut self, first: char) -> Token {
+    fn identifier(&mut self, first: char) -> Result<Token, TokenizerError> {
         let mut ident = String::with_capacity(8);
         ident.push(first);
 
@@ -541,7 +552,7 @@ impl Tokenizer {
             "for" => TokenType::For,
             "while" => TokenType::While,
             "match" => TokenType::Match,
-            "when" => TokenType::When,
+            "when" => return self.when(),
             "break" => TokenType::Break,
             "continue" => TokenType::Continue,
             "pass" => TokenType::Pass,
@@ -575,7 +586,43 @@ impl Tokenizer {
             _ => TokenType::Identifier(ident),
         };
 
-        self.mk_token(token_type)
+        Ok(self.mk_token(token_type))
+    }
+
+    fn when(&mut self) -> Result<Token, TokenizerError> {
+        let mut phrase = String::with_capacity(16);
+        let mut parameters = Vec::with_capacity(2);
+
+        while let Some(c) = self.next_char() {
+            match c {
+                ',' => break,
+                ' ' => {
+                    if !phrase.is_empty() && !phrase.ends_with(' ') {
+                        phrase.push(' ');
+                    }
+                }
+                '(' => {
+                    let mut param_name = String::with_capacity(8);
+                    loop {
+                        match self.next_char() {
+                            Some(')') => break,
+                            Some(c) => param_name.push(c),
+                            None => return Err(self.mk_error(TokenizerErrorType::UnexpectedEof)),
+                        }
+                    }
+                    parameters.push((phrase.len(), param_name));
+
+                    if !phrase.is_empty() && !phrase.ends_with(' ') {
+                        phrase.push(' ');
+                    }
+                }
+                _ => {
+                    phrase.push(c);
+                }
+            }
+        }
+
+        Ok(self.mk_token(TokenType::When { phrase, parameters }))
     }
 
     fn string(&mut self, delim: char) -> Result<String, TokenizerError> {

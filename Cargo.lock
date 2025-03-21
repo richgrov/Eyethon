@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "micro-gd"
+name = "inflect"
 version = "0.1.0"
