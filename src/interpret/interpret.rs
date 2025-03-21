@@ -85,11 +85,7 @@ impl Interpreter {
         Ok(this)
     }
 
-    pub fn call_method(
-        &mut self,
-        this: Value,
-        method_name: &str,
-    ) -> Result<Option<Value>, RuntimeError> {
+    pub fn call_method(&mut self, this: Value, id: usize) -> Result<Option<Value>, RuntimeError> {
         let class_name = match &this {
             Value::Object { class_name, .. } => class_name,
             _ => panic!("not callable"),
@@ -102,8 +98,8 @@ impl Interpreter {
 
         let func_addr = class
             .functions
-            .get(method_name)
-            .ok_or(RuntimeError::NoSuchMethod(method_name.to_owned()))?;
+            .get(id)
+            .ok_or(RuntimeError::NoSuchMethod(id.to_string()))?;
 
         let upvalues = vec![this];
         self.call_function(&class_name, *func_addr, &upvalues, &[])
@@ -171,6 +167,7 @@ impl Interpreter {
                     stack.push(member);
                 }
                 Instruction::PushMemberFunction(name) => {
+                    panic!("temporarily disabled");
                     let this = &stack[0];
                     let Value::Object { class_name, .. } = this else {
                         panic!();
@@ -179,11 +176,11 @@ impl Interpreter {
                     let classes = self.classes.borrow();
                     let class = classes.get(class_name).unwrap();
 
-                    let address = class.functions.get(name).unwrap();
+                    /*let address = class.functions.get(name).unwrap();
                     stack.push(Value::Function {
                         address: *address,
                         upvalues: vec![this.clone()],
-                    });
+                    });*/
                 }
                 Instruction::Call { n_args } => {
                     let callee = stack.pop().unwrap();

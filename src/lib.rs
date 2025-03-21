@@ -155,7 +155,7 @@ mod tests {
         };
 
         if let Some(expected) = &test.output {
-            match interpreter.call_method(object, "test") {
+            match interpreter.call_method(object, 0) {
                 Ok(Some(obj)) => {
                     eprintln!("{} returned a value: {}", test.name, obj);
                     return false;

@@ -9,12 +9,15 @@ use tokenizers::Tokenizer;
 
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
+type Embedding = Array1<f32>;
+
 #[derive(Debug)]
 pub struct ClassBytecode {
     pub name: String,
     pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
-    pub functions: HashMap<String, usize>,
+    pub when_phrases: Vec<Embedding>,
+    pub functions: Vec<usize>,
     pub member_variables: Vec<String>,
 }
 
@@ -128,7 +131,8 @@ struct Compiler {
     extends: Option<String>,
     non_class_name_statement_seen: bool,
     member_variables: Vec<String>,
-    function_entry_points: HashMap<String, usize>,
+    when_phrases: Vec<Embedding>,
+    function_entry_points: Vec<usize>,
     function_scope_stack: Vec<FunctionScope>,
 
     tokenizer: Tokenizer,
@@ -160,7 +164,8 @@ impl Compiler {
             extends: None,
             non_class_name_statement_seen: false,
             member_variables: Vec::new(),
-            function_entry_points: HashMap::new(),
+            when_phrases: Vec::with_capacity(8),
+            function_entry_points: Vec::with_capacity(8),
             function_scope_stack: Vec::with_capacity(4),
 
             tokenizer,
@@ -225,13 +230,6 @@ impl Compiler {
 
                     let _ = self.extends.insert(name);
                 }
-                StatementType::Expression(Expression {
-                    ty: ExpressionType::Function(func),
-                    ..
-                }) => {
-                    self.function_entry_points.insert(func.name.clone(), 0);
-                    functions.push(func);
-                }
                 StatementType::Var {
                     konst,
                     static_,
@@ -256,6 +254,17 @@ impl Compiler {
 
                     instructions.push(Instruction::Store);
                 }
+                StatementType::When {
+                    phrase,
+                    parameters,
+                    statements,
+                } => {
+                    let embedding = self.embed(&phrase).unwrap();
+
+                    let id = self.when_phrases.len();
+                    self.when_phrases.push(embedding);
+                    functions.push((id, parameters, statements));
+                }
                 StatementType::Pass
                 | StatementType::If { .. }
                 | StatementType::Return(_)
@@ -278,17 +287,17 @@ impl Compiler {
 
         instructions.push(Instruction::Return);
 
-        let mut function_entry_points = HashMap::with_capacity(functions.len());
-        for function in functions {
-            function_entry_points.insert(function.name, instructions.len());
-            let num_args = function.args.len();
+        let mut function_entry_points = Vec::with_capacity(functions.len());
+        for (id, parameters, statements) in functions {
+            function_entry_points.push(instructions.len());
+            let num_args = parameters.len();
 
             self.function_scope_stack.push(FunctionScope {
                 num_upvalues: 1,
-                locals: function.args.into_iter().map(|arg| arg.name).collect(),
+                locals: parameters.into_iter().map(|(_, name)| name).collect(),
             });
 
-            for statement in function.statements {
+            for statement in statements {
                 self.handle_statement(&mut instructions, statement)?;
             }
 
@@ -306,6 +315,7 @@ impl Compiler {
             name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
             bytecode: instructions,
+            when_phrases: self.when_phrases,
             functions: function_entry_points,
             member_variables: self.member_variables,
         })
@@ -386,10 +396,10 @@ impl Compiler {
                     return Ok(());
                 }
 
-                if let Some(_) = self.function_entry_points.get(&identifier) {
+                /*if let Some(_) = self.function_entry_points.get(&identifier) {
                     instructions.push(Instruction::PushMemberFunction(identifier));
                     return Ok(());
-                }
+                }*/
 
                 instructions.push(Instruction::PushGlobal(identifier));
             }
