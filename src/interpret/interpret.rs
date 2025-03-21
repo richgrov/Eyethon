@@ -166,37 +166,27 @@ impl Interpreter {
                     let member = variables.borrow()[*index].clone();
                     stack.push(member);
                 }
-                Instruction::PushMemberFunction(name) => {
-                    panic!("temporarily disabled");
+                Instruction::Do { action, n_args } => {
                     let this = &stack[0];
-                    let Value::Object { class_name, .. } = this else {
-                        panic!();
+
+                    let address = {
+                        let Value::Object { class_name, .. } = this else {
+                            panic!();
+                        };
+
+                        let classes = self.classes.borrow();
+                        let class = classes.get(class_name).unwrap();
+                        *class.functions.get(*action).unwrap()
                     };
 
-                    let classes = self.classes.borrow();
-                    let class = classes.get(class_name).unwrap();
+                    let upvalues = vec![this.clone()];
 
-                    /*let address = class.functions.get(name).unwrap();
-                    stack.push(Value::Function {
-                        address: *address,
-                        upvalues: vec![this.clone()],
-                    });*/
-                }
-                Instruction::Call { n_args } => {
-                    let callee = stack.pop().unwrap();
-                    match callee {
-                        Value::Function { address, upvalues } => {
-                            let args = stack.split_off(stack.len() - n_args);
-                            let result =
-                                self.call_function(class_name, address, &upvalues, &args)?;
-                            stack.push(result.unwrap_or(Value::Null));
-                        }
-                        Value::NativeFunction(func) => {
-                            let args = stack.split_off(stack.len() - n_args);
-                            let result = func(args);
-                            stack.push(result);
-                        }
-                        _ => return Err(RuntimeError::NotCallable),
+                    if address >= 0 {
+                        let args = stack.split_off(stack.len() - n_args);
+                        let result = self.call_function(class_name, address, &upvalues, &args)?;
+                        stack.push(result.unwrap_or(Value::Null));
+                    } else {
+                        // todo
                     }
                 }
                 Instruction::Store => {

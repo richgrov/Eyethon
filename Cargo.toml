@@ -8,6 +8,6 @@ crate-type = ["staticlib"]
 
 [dependencies]
 ndarray = "0.16.1"
-ndarray-linalg = "0.17.0"
+ndarray-linalg = { version = "0.17.0", features = ["openblas-static"] }
 ort = "2.0.0-rc.9"
 tokenizers = "0.21.1"

@@ -31,10 +31,9 @@ pub enum Instruction {
     PushString(String),
     PushGlobal(String),
     PushMember(usize),
-    PushMemberFunction(String),
     Pop,
     MakeArray { len: usize },
-    Call { n_args: usize },
+    Do { action: usize, n_args: usize },
     Store,
     Return,
 }
@@ -50,10 +49,9 @@ impl fmt::Display for Instruction {
             Instruction::PushString(s) => write!(f, "pushs \"{}\"", s),
             Instruction::PushGlobal(s) => write!(f, "pushg \"{}\"", s),
             Instruction::PushMember(n) => write!(f, "pushmem {}", n),
-            Instruction::PushMemberFunction(s) => write!(f, "pushmemf \"{}\"", s),
             Instruction::Pop => write!(f, "pop"),
             Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
-            Instruction::Call { n_args } => write!(f, "call {}", n_args),
+            Instruction::Do { action, n_args } => write!(f, "do {}, {}", action, n_args),
             Instruction::Store => write!(f, "store"),
             Instruction::Return => write!(f, "return"),
         }
@@ -70,6 +68,11 @@ pub enum CompileError {
         column: usize,
     },
     InvalidExtends {
+        line: usize,
+        column: usize,
+    },
+    UnknownAction {
+        phrase: String,
         line: usize,
         column: usize,
     },
@@ -91,6 +94,13 @@ impl fmt::Display for CompileError {
             }
             CompileError::InvalidExtends { line, column } => {
                 write!(f, "{}:{}: extends not allowed here", line, column)
+            }
+            CompileError::UnknownAction {
+                phrase,
+                line,
+                column,
+            } => {
+                write!(f, "{}:{}: don't know how to '{}'", line, column, phrase)
             }
             CompileError::NotAllowedAtTopLevel(statement) => {
                 write!(
@@ -140,6 +150,8 @@ struct Compiler {
 }
 
 impl Compiler {
+    const MINIMUM_SIMILARITY: f32 = 0.5;
+
     pub fn new(
         annotation_handlers: HashMap<String, AnnotationHandler>,
         fallback_class_name: String,
@@ -336,6 +348,28 @@ impl Compiler {
                 handler();
                 self.handle_statement(instructions, *target)?;
             }
+            StatementType::Action { phrase, arguments } => {
+                let n_args = arguments.len();
+                for (_, arg) in arguments {
+                    self.evaluate_expression(instructions, arg)?;
+                }
+
+                let embedding = self.embed(&phrase).unwrap();
+                let (handler_idx, similarity) = self.lookup_embedding(&embedding);
+
+                if handler_idx == -1 || similarity < Self::MINIMUM_SIMILARITY {
+                    return Err(CompileError::UnknownAction {
+                        phrase,
+                        line: statement.line,
+                        column: statement.column,
+                    });
+                }
+
+                instructions.push(Instruction::Do {
+                    action: handler_idx as usize,
+                    n_args,
+                });
+            }
             StatementType::Expression(expr) => {
                 self.evaluate_expression(instructions, expr)?;
                 instructions.push(Instruction::Pop);
@@ -425,15 +459,15 @@ impl Compiler {
                 }
                 instructions.push(Instruction::MakeArray { len });
             }
-            ExpressionType::FunctionCall(expr) => {
-                let n_args = expr.args.len();
+            ExpressionType::FunctionCall(_) => {
+                /*let n_args = expr.args.len();
                 for arg in expr.args {
                     self.evaluate_expression(instructions, arg)?;
                 }
 
                 self.evaluate_expression(instructions, *expr.callee)?;
 
-                instructions.push(Instruction::Call { n_args });
+                instructions.push(Instruction::Call { n_args });*/
             }
             other => {
                 return Err(CompileError::NotImplemented {
@@ -484,6 +518,22 @@ impl Compiler {
 
         let norm = mean.norm();
         return Ok(mean / norm);
+    }
+
+    fn lookup_embedding(&self, embedding: &Embedding) -> (i32, f32) {
+        let mut best_idx = -1;
+        let mut best_similarity = f32::NEG_INFINITY;
+
+        for (i, emb) in self.when_phrases.iter().enumerate() {
+            let cosine_similarity = emb.dot(embedding) / (emb.norm() * embedding.norm());
+
+            if cosine_similarity > best_similarity {
+                best_similarity = cosine_similarity;
+                best_idx = i as i32;
+            }
+        }
+
+        (best_idx, best_similarity)
     }
 }
 

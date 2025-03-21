@@ -128,6 +128,10 @@ pub enum StatementType {
         parameters: Vec<(usize, String)>,
         statements: Vec<Statement>,
     },
+    Action {
+        phrase: String,
+        arguments: Vec<(usize, Expression)>,
+    },
     Pass,
 }
 
@@ -555,6 +559,17 @@ impl Parser {
                         phrase,
                         parameters,
                         statements,
+                    },
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
+            }
+            TokenType::Action { phrase } => {
+                self.consume_token();
+                return Ok(Statement {
+                    ty: StatementType::Action {
+                        phrase,
+                        arguments: Vec::new(),
                     },
                     line: first_tok.line,
                     column: first_tok.column,

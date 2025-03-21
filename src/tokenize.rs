@@ -32,6 +32,9 @@ pub enum TokenType {
         phrase: String,
         parameters: Vec<(usize, String)>,
     },
+    Action {
+        phrase: String,
+    },
     Break,
     Continue,
     Pass,
@@ -131,6 +134,7 @@ impl TokenType {
             While => "while statement",
             Match => "match statement",
             When { .. } => "when statement",
+            Action { .. } => "action",
             Break => "break",
             Continue => "continue",
             Pass => "pass",
@@ -583,7 +587,7 @@ impl Tokenizer {
             "true" => TokenType::True,
             "false" => TokenType::False,
             "void" => TokenType::Void,
-            _ => TokenType::Identifier(ident),
+            _ => return self.action(ident),
         };
 
         Ok(self.mk_token(token_type))
@@ -623,6 +627,21 @@ impl Tokenizer {
         }
 
         Ok(self.mk_token(TokenType::When { phrase, parameters }))
+    }
+
+    fn action(&mut self, first_word: String) -> Result<Token, TokenizerError> {
+        let mut phrase = first_word;
+
+        while let Some(c) = self.peek_char() {
+            if c != '\n' {
+                phrase.push(c);
+                self.next_char();
+            } else {
+                break;
+            }
+        }
+
+        Ok(self.mk_token(TokenType::Action { phrase }))
     }
 
     fn string(&mut self, delim: char) -> Result<String, TokenizerError> {
