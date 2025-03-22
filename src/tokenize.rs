@@ -633,12 +633,12 @@ impl Tokenizer {
         let mut phrase = first_word;
 
         while let Some(c) = self.peek_char() {
-            if c != '\n' {
-                phrase.push(c);
-                self.next_char();
-            } else {
+            if c == '\n' || c == '(' || c == ')' || c == '\"' {
                 break;
             }
+
+            phrase.push(c);
+            self.next_char();
         }
 
         Ok(self.mk_token(TokenType::Action { phrase }))

@@ -566,10 +566,50 @@ impl Parser {
             }
             TokenType::Action { phrase } => {
                 self.consume_token();
+                let mut full_phrase = phrase;
+                let mut arguments = Vec::new();
+
+                loop {
+                    if let Some(Token {
+                        ty: TokenType::Eol, ..
+                    }) = self.peek_tok()
+                    {
+                        break;
+                    }
+
+                    arguments.push((full_phrase.len(), self.expression()?));
+
+                    if let Some(Token {
+                        ty: TokenType::Eol, ..
+                    }) = self.peek_tok()
+                    {
+                        break;
+                    }
+
+                    match self.peek_tok() {
+                        Some(Token {
+                            ty: TokenType::Action { phrase },
+                            ..
+                        }) => {
+                            full_phrase.push_str(phrase);
+                            self.consume_token();
+                        }
+                        Some(other) => {
+                            return Err(ParseError::UnexpectedToken {
+                                expected: vec![],
+                                actual: other.clone(),
+                            });
+                        }
+                        None => {
+                            return Err(ParseError::UnexpectedEof);
+                        }
+                    }
+                }
+
                 return Ok(Statement {
                     ty: StatementType::Action {
-                        phrase,
-                        arguments: Vec::new(),
+                        phrase: full_phrase,
+                        arguments,
                     },
                     line: first_tok.line,
                     column: first_tok.column,
@@ -1637,7 +1677,7 @@ impl Parser {
                     self.expect(TokenType::RParen)?;
                     ExpressionType::Preload(path)
                 }
-                TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
+                TokenType::Action { ref phrase } => ExpressionType::Identifier(phrase.clone()),
                 TokenType::Null => ExpressionType::Null,
                 TokenType::True => ExpressionType::Bool(true),
                 TokenType::False => ExpressionType::Bool(false),
