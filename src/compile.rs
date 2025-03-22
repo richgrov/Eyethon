@@ -452,6 +452,9 @@ impl Compiler {
             ExpressionType::Float(f) => {
                 instructions.push(Instruction::PushFloat(f));
             }
+            ExpressionType::Parenthesis(expr) => {
+                self.evaluate_expression(instructions, *expr)?;
+            }
             ExpressionType::Array(expressions) => {
                 let len = expressions.len();
                 for expression in expressions {
