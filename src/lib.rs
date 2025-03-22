@@ -1,19 +1,25 @@
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use interpret::Interpreter;
 
 mod compile;
+mod inference;
 mod interpret;
 mod parse;
 mod tokenize;
 
 pub struct Vm {
+    inference: Rc<Inference>,
     interpreter: Interpreter,
 }
 
 impl Vm {
     pub fn new() -> Vm {
+        Inference::init().unwrap();
+
         Vm {
+            inference: Rc::new(Inference::new().unwrap()),
             interpreter: Interpreter::new(),
         }
     }
@@ -21,8 +27,13 @@ impl Vm {
     pub fn run(&mut self, source: &str, fallback_class_name: String) -> Result<(), Error> {
         let tokens = tokenize::tokenize(source).map_err(|e| Error::SyntaxError(e))?;
         let ast = parse::parse(tokens).map_err(|e| Error::ParseError(e))?;
-        let class = compile::compile(ast, HashMap::new(), fallback_class_name.clone())
-            .map_err(|e| Error::CompileError(e))?;
+        let class = compile::compile(
+            ast,
+            HashMap::new(),
+            fallback_class_name.clone(),
+            self.inference.clone(),
+        )
+        .map_err(|e| Error::CompileError(e))?;
 
         self.interpreter.register_class(class).unwrap();
 

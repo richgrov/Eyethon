@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::rc::Rc;
 
 use ndarray::{Array, Array1};
 use ndarray_linalg::Norm;
@@ -7,6 +8,7 @@ use ort::session::builder::GraphOptimizationLevel;
 use ort::value::Tensor;
 use tokenizers::Tokenizer;
 
+use crate::inference::Inference;
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
 type Embedding = Array1<f32>;
@@ -155,9 +157,7 @@ struct Compiler {
     member_variables: Vec<String>,
     when_handlers: Vec<Handler>,
     function_scope_stack: Vec<FunctionScope>,
-
-    tokenizer: Tokenizer,
-    ort_session: ort::session::Session,
+    inference: Rc<Inference>,
 }
 
 impl Compiler {
@@ -167,19 +167,8 @@ impl Compiler {
     pub fn new(
         annotation_handlers: HashMap<String, AnnotationHandler>,
         fallback_class_name: String,
+        inference: Rc<Inference>,
     ) -> Compiler {
-        let tokenizer = Tokenizer::from_bytes(include_bytes!("./tokenizer.json")).unwrap();
-        ort::init().commit().unwrap();
-
-        let ort_session = ort::session::Session::builder()
-            .unwrap()
-            .with_optimization_level(GraphOptimizationLevel::Level1)
-            .unwrap()
-            .with_intra_threads(1)
-            .unwrap()
-            .commit_from_memory(include_bytes!("./model.onnx"))
-            .unwrap();
-
         Compiler {
             annotation_handlers,
             fallback_class_name,
@@ -190,9 +179,7 @@ impl Compiler {
             member_variables: Vec::new(),
             when_handlers: Vec::with_capacity(8),
             function_scope_stack: Vec::with_capacity(4),
-
-            tokenizer,
-            ort_session,
+            inference,
         }
     }
 
@@ -282,7 +269,7 @@ impl Compiler {
                     parameters,
                     statements,
                 } => {
-                    let embedding = self.embed(&phrase).unwrap();
+                    let embedding = self.inference.embed(&phrase).unwrap();
                     self.when_handlers.push(Handler {
                         phrase,
                         embedding,
@@ -369,7 +356,7 @@ impl Compiler {
                     self.evaluate_expression(instructions, arg)?;
                 }
 
-                let embedding = self.embed(&phrase).unwrap();
+                let embedding = self.inference.embed(&phrase).unwrap();
                 let (handler_idx, similarity) = self.lookup_embedding(&embedding);
 
                 if similarity < Self::MINIMUM_SIMILARITY {
@@ -505,45 +492,6 @@ impl Compiler {
         Ok(())
     }
 
-    fn embed(&self, text: &str) -> Result<ndarray::Array1<f32>, ort::Error> {
-        let encoding = self.tokenizer.encode(text, true).unwrap();
-        let ids = encoding.get_ids();
-        let attention = encoding.get_attention_mask();
-
-        let id_tensor = Tensor::from_array((
-            [1, ids.len()],
-            ids.iter().map(|x| *x as i64).collect::<Vec<_>>(),
-        ))?;
-
-        let attention_tensor = Tensor::from_array((
-            [1, attention.len()],
-            attention.iter().map(|x| *x as i64).collect::<Vec<_>>(),
-        ))?;
-
-        let result = self
-            .ort_session
-            .run(ort::inputs![id_tensor, attention_tensor]?)?;
-
-        let output = result[0].try_extract_tensor::<f32>()?;
-        let att = Array::from_shape_vec(
-            [1, attention.len()],
-            attention.iter().map(|x| *x as f32).collect::<Vec<_>>(),
-        )
-        .unwrap();
-
-        let mut mean = Array1::<f32>::zeros([768]);
-        for (token_idx, weight) in attention.iter().enumerate() {
-            let token = output
-                .slice(ndarray::s![0, token_idx, ..])
-                .mapv(|v| v * (*weight as f32));
-            mean += &token;
-        }
-        mean /= att.sum();
-
-        let norm = mean.norm();
-        return Ok(mean / norm);
-    }
-
     fn lookup_embedding(&self, embedding: &Embedding) -> (i32, f32) {
         let mut best_idx = -1;
         let mut best_similarity = f32::NEG_INFINITY;
@@ -566,6 +514,8 @@ pub fn compile(
     statements: Vec<Statement>,
     annotation_handlers: HashMap<String, AnnotationHandler>,
     fallback_class_name: String,
+    inference: Rc<Inference>,
 ) -> Result<ClassBytecode, CompileError> {
-    Compiler::new(annotation_handlers, fallback_class_name).emit_class_bytecode(statements)
+    Compiler::new(annotation_handlers, fallback_class_name, inference)
+        .emit_class_bytecode(statements)
 }
