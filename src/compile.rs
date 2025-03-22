@@ -2,20 +2,13 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
-use ndarray::{Array, Array1};
 use ndarray_linalg::Norm;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::value::Tensor;
-use tokenizers::Tokenizer;
 
-use crate::inference::Inference;
+use crate::inference::{Embedding, Inference};
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
-
-type Embedding = Array1<f32>;
 
 #[derive(Debug)]
 pub struct ClassBytecode {
-    pub name: String,
     pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
     pub handler_addresses: Vec<usize>,
@@ -151,7 +144,6 @@ struct Handler {
 struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
-    fallback_class_name: String,
     extends: Option<String>,
     non_class_name_statement_seen: bool,
     member_variables: Vec<String>,
@@ -166,12 +158,10 @@ impl Compiler {
 
     pub fn new(
         annotation_handlers: HashMap<String, AnnotationHandler>,
-        fallback_class_name: String,
         inference: Rc<Inference>,
     ) -> Compiler {
         Compiler {
             annotation_handlers,
-            fallback_class_name,
 
             class_name: None,
             extends: None,
@@ -323,7 +313,6 @@ impl Compiler {
         }
 
         Ok(ClassBytecode {
-            name: self.class_name.unwrap_or(self.fallback_class_name),
             extends: self.extends,
             bytecode: instructions,
             handler_addresses: self
@@ -513,9 +502,7 @@ impl Compiler {
 pub fn compile(
     statements: Vec<Statement>,
     annotation_handlers: HashMap<String, AnnotationHandler>,
-    fallback_class_name: String,
     inference: Rc<Inference>,
 ) -> Result<ClassBytecode, CompileError> {
-    Compiler::new(annotation_handlers, fallback_class_name, inference)
-        .emit_class_bytecode(statements)
+    Compiler::new(annotation_handlers, inference).emit_class_bytecode(statements)
 }

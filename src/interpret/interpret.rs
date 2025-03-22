@@ -8,8 +8,7 @@ use crate::compile::{ClassBytecode, Instruction};
 use super::Value;
 
 pub struct Interpreter {
-    classes: Rc<RefCell<HashMap<String, ClassBytecode>>>,
-    class_objects: HashMap<String, Value>,
+    source_files: Rc<RefCell<HashMap<String, ClassBytecode>>>,
     globals: HashMap<String, Value>,
 }
 
@@ -39,8 +38,7 @@ impl fmt::Display for RuntimeError {
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            classes: Rc::new(RefCell::new(HashMap::new())),
-            class_objects: HashMap::new(),
+            source_files: Rc::new(RefCell::new(HashMap::new())),
             globals: HashMap::new(),
         }
     }
@@ -49,78 +47,38 @@ impl Interpreter {
         self.globals.insert(name.to_string(), value);
     }
 
-    pub fn register_class(&mut self, class: ClassBytecode) -> Result<(), RuntimeError> {
-        self.class_objects.insert(
-            class.name.clone(),
-            Value::Object {
-                variables: Rc::new(RefCell::new(Vec::new())),
-                variable_names: HashMap::new(),
-                class_name: "".to_owned(),
-            },
-        );
-        self.classes.borrow_mut().insert(class.name.clone(), class);
-
-        Ok(())
+    pub fn register_file(&mut self, file_name: String, class: ClassBytecode) {
+        self.source_files.borrow_mut().insert(file_name, class);
     }
 
-    pub fn new_instance(&mut self, class_name: &str) -> Result<Value, RuntimeError> {
-        let classes = self.classes.clone();
-        let classes = classes.borrow();
-        let class = classes.get(class_name).unwrap();
+    pub fn exec(&mut self, file_name: &str, index: usize) -> Result<Option<Value>, RuntimeError> {
+        let func_addr = {
+            let source_files = self.source_files.borrow();
+            let code = source_files.get(file_name).unwrap();
 
-        let num_members = class.member_variables.len();
-        let mut variable_names = HashMap::with_capacity(num_members);
-        for (i, name) in class.member_variables.iter().enumerate() {
-            variable_names.insert(name.to_owned(), i);
-        }
-
-        let this = Value::Object {
-            variables: Rc::new(RefCell::new(vec![Value::Null; num_members])),
-            variable_names,
-            class_name: class_name.to_owned(),
+            *code
+                .handler_addresses
+                .get(index)
+                .ok_or(RuntimeError::NoSuchMethod(index.to_string()))?
         };
 
-        self.call_function(class_name, 0, &vec![this.clone()], &[])?;
-
-        Ok(this)
-    }
-
-    pub fn call_method(&mut self, this: Value, id: usize) -> Result<Option<Value>, RuntimeError> {
-        let class_name = match &this {
-            Value::Object { class_name, .. } => class_name,
-            _ => panic!("not callable"),
-        };
-        let class_name = class_name.to_owned();
-
-        let classes = self.classes.clone();
-        let classes = classes.borrow();
-        let class = &classes.get(&class_name).unwrap();
-
-        let func_addr = class
-            .handler_addresses
-            .get(id)
-            .ok_or(RuntimeError::NoSuchMethod(id.to_string()))?;
-
-        let upvalues = vec![this];
-        self.call_function(&class_name, *func_addr, &upvalues, &[])
+        self.call_function(file_name, func_addr, vec![])
     }
 
     fn call_function(
         &mut self,
-        class_name: &str,
+        file_name: &str,
         func_address: usize,
-        upvalues: &[Value],
-        args: &[Value],
+        args: Vec<Value>,
     ) -> Result<Option<Value>, RuntimeError> {
-        let classes = self.classes.clone();
-        let classes = classes.borrow();
-        let class = &classes.get(class_name).unwrap();
-        let instructions = &class.bytecode[func_address..];
+        let source_files = self.source_files.clone();
+        let source_files = source_files.borrow();
+        let code = source_files.get(file_name).unwrap();
+
+        let instructions = &code.bytecode[func_address..];
 
         let mut pc = 0;
-        let mut stack = Vec::with_capacity(upvalues.len() + args.len());
-        stack.extend_from_slice(upvalues);
-        stack.extend_from_slice(args);
+        let mut stack = args.to_vec();
 
         while pc < instructions.len() {
             match &instructions[pc] {
@@ -170,20 +128,16 @@ impl Interpreter {
                     let this = &stack[0];
 
                     let address = {
-                        let Value::Object { class_name, .. } = this else {
-                            panic!();
-                        };
-
-                        let classes = self.classes.borrow();
-                        let class = classes.get(class_name).unwrap();
-                        *class.handler_addresses.get(*action).unwrap()
+                        let source_files = self.source_files.borrow();
+                        let code = source_files.get(file_name).unwrap();
+                        *code.handler_addresses.get(*action).unwrap()
                     };
 
                     let upvalues = vec![this.clone()];
 
                     if address >= 0 {
                         let args = stack.split_off(stack.len() - n_args);
-                        let result = self.call_function(class_name, address, &upvalues, &args)?;
+                        let result = self.call_function(file_name, address, args)?;
                         stack.push(result.unwrap_or(Value::Null));
                     } else {
                         // todo
@@ -216,10 +170,9 @@ impl Interpreter {
                     }
                 }
                 Instruction::Return => {
-                    let num_inputs = upvalues.len() + args.len();
-                    if stack.len() == num_inputs {
+                    if stack.len() == args.len() {
                         return Ok(None);
-                    } else if stack.len() == num_inputs + 1 {
+                    } else if stack.len() == args.len() + 1 {
                         return Ok(stack.pop());
                     } else {
                         return Err(RuntimeError::BadStack);
