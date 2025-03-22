@@ -54,7 +54,7 @@ impl fmt::Display for Instruction {
             Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
             Instruction::Do { action, n_args } => write!(f, "do {}, {}", action, n_args),
             Instruction::Store => write!(f, "store"),
-            Instruction::Return => write!(f, "return"),
+            Instruction::Return => write!(f, "ret"),
         }
     }
 }
