@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::fmt;
+
 use ndarray::{Array, Array1};
 use ndarray_linalg::Norm;
 use ort::execution_providers::CoreMLExecutionProvider;
@@ -8,6 +11,7 @@ use tokenizers::Tokenizer;
 pub struct Inference {
     tokenizer: Tokenizer,
     ort_session: ort::session::Session,
+    embeddings: RefCell<Vec<Embedding>>,
 }
 
 #[derive(Debug)]
@@ -15,6 +19,16 @@ pub enum InferenceError {
     TokenizerError(tokenizers::Error),
     OrtError(ort::Error),
     NdarrayError(ndarray::ShapeError),
+}
+
+impl fmt::Display for InferenceError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            InferenceError::TokenizerError(ref e) => e.fmt(f),
+            InferenceError::OrtError(ref e) => e.fmt(f),
+            InferenceError::NdarrayError(ref e) => e.fmt(f),
+        }
+    }
 }
 
 pub type Embedding = Array1<f32>;
@@ -37,6 +51,7 @@ impl Inference {
         Ok(Inference {
             tokenizer: Tokenizer::from_bytes(include_bytes!("./tokenizer.json"))?,
             ort_session,
+            embeddings: RefCell::new(vec![]),
         })
     }
 
@@ -76,6 +91,33 @@ impl Inference {
 
         let norm = mean.norm();
         return Ok(mean / norm);
+    }
+
+    pub fn store(&self, embedding: Embedding) -> usize {
+        let mut embeddings = self.embeddings.borrow_mut();
+        embeddings.push(embedding);
+        embeddings.len() - 1
+    }
+
+    pub fn lookup(&self, embedding: &Embedding) -> Option<(usize, f32)> {
+        let embeddings = self.embeddings.borrow();
+        if embeddings.is_empty() {
+            return None;
+        }
+
+        let mut best_idx = 0;
+        let mut best_similarity = f32::NEG_INFINITY;
+
+        for (i, emb) in embeddings.iter().enumerate() {
+            let cosine_similarity = emb.dot(embedding) / (emb.norm() * embedding.norm());
+
+            if cosine_similarity > best_similarity {
+                best_similarity = cosine_similarity;
+                best_idx = i;
+            }
+        }
+
+        Some((best_idx, best_similarity))
     }
 }
 

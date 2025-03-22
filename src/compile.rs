@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use ndarray_linalg::Norm;
 
-use crate::inference::{Embedding, Inference};
+use crate::inference::{Embedding, Inference, InferenceError};
 use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ pub enum Instruction {
     PushMember(usize),
     Pop,
     MakeArray { len: usize },
-    Do { action: usize, n_args: usize },
+    Do { action: i32, n_args: usize },
     Store,
     Return,
 }
@@ -137,11 +137,10 @@ struct FunctionScope {
 #[derive(Debug, Clone)]
 struct Handler {
     phrase: String,
-    embedding: Embedding,
     address: usize,
 }
 
-struct Compiler {
+pub struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
     extends: Option<String>,
@@ -150,6 +149,7 @@ struct Compiler {
     when_handlers: Vec<Handler>,
     function_scope_stack: Vec<FunctionScope>,
     inference: Rc<Inference>,
+    handlers: HashMap<usize, i32>,
 }
 
 impl Compiler {
@@ -170,11 +170,12 @@ impl Compiler {
             when_handlers: Vec::with_capacity(8),
             function_scope_stack: Vec::with_capacity(4),
             inference,
+            handlers: HashMap::new(),
         }
     }
 
     pub fn emit_class_bytecode(
-        mut self,
+        &mut self,
         statements: Vec<Statement>,
     ) -> Result<ClassBytecode, CompileError> {
         let mut instructions = Vec::new();
@@ -260,12 +261,11 @@ impl Compiler {
                     statements,
                 } => {
                     let embedding = self.inference.embed(&phrase).unwrap();
-                    self.when_handlers.push(Handler {
-                        phrase,
-                        embedding,
-                        address: 0,
-                    });
+                    let embed_id = self.inference.store(embedding);
+                    self.when_handlers.push(Handler { phrase, address: 0 });
                     handlers.push((parameters, statements));
+                    self.handlers
+                        .insert(embed_id, self.when_handlers.len() as i32 - 1);
                 }
                 StatementType::Pass
                 | StatementType::If { .. }
@@ -294,7 +294,7 @@ impl Compiler {
             let num_args = parameters.len();
 
             self.function_scope_stack.push(FunctionScope {
-                num_upvalues: 1,
+                num_upvalues: 0,
                 locals: parameters.into_iter().map(|(_, name)| name).collect(),
             });
 
@@ -313,14 +313,14 @@ impl Compiler {
         }
 
         Ok(ClassBytecode {
-            extends: self.extends,
+            extends: self.extends.take(),
             bytecode: instructions,
             handler_addresses: self
                 .when_handlers
-                .into_iter()
+                .drain(..)
                 .map(|handler| handler.address)
                 .collect(),
-            member_variables: self.member_variables,
+            member_variables: self.member_variables.drain(..).collect(),
         })
     }
 
@@ -346,29 +346,42 @@ impl Compiler {
                 }
 
                 let embedding = self.inference.embed(&phrase).unwrap();
-                let (handler_idx, similarity) = self.lookup_embedding(&embedding);
+                let lookup_res = self.inference.lookup(&embedding);
 
-                if similarity < Self::MINIMUM_SIMILARITY {
-                    let suggestion = if handler_idx != -1
-                        && similarity >= Self::SIMILARITY_SUGGESTION_THRESHOLD
-                    {
-                        Some(self.when_handlers[handler_idx as usize].phrase.clone())
-                    } else {
-                        None
-                    };
+                let embed_id = match lookup_res {
+                    Some((embed_id, similarity)) if similarity > Self::MINIMUM_SIMILARITY => {
+                        embed_id
+                    }
+                    Some((handler_idx, similarity)) => {
+                        let suggestion = if similarity >= Self::SIMILARITY_SUGGESTION_THRESHOLD {
+                            Some(self.when_handlers[handler_idx as usize].phrase.clone())
+                        } else {
+                            None
+                        };
 
-                    return Err(CompileError::UnknownAction {
-                        phrase,
-                        suggestion,
-                        line: statement.line,
-                        column: statement.column,
-                    });
-                }
+                        return Err(CompileError::UnknownAction {
+                            phrase,
+                            suggestion,
+                            line: statement.line,
+                            column: statement.column,
+                        });
+                    }
+                    None => {
+                        return Err(CompileError::UnknownAction {
+                            phrase,
+                            suggestion: None,
+                            line: statement.line,
+                            column: statement.column,
+                        })
+                    }
+                };
 
                 instructions.push(Instruction::Do {
-                    action: handler_idx as usize,
+                    action: *self.handlers.get(&embed_id).unwrap(),
                     n_args,
                 });
+
+                instructions.push(Instruction::Pop);
             }
             StatementType::Expression(expr) => {
                 self.evaluate_expression(instructions, expr)?;
@@ -484,28 +497,14 @@ impl Compiler {
         Ok(())
     }
 
-    fn lookup_embedding(&self, embedding: &Embedding) -> (i32, f32) {
-        let mut best_idx = -1;
-        let mut best_similarity = f32::NEG_INFINITY;
-
-        for (i, handler) in self.when_handlers.iter().enumerate() {
-            let emb = &handler.embedding;
-            let cosine_similarity = emb.dot(embedding) / (emb.norm() * embedding.norm());
-
-            if cosine_similarity > best_similarity {
-                best_similarity = cosine_similarity;
-                best_idx = i as i32;
-            }
-        }
-
-        (best_idx, best_similarity)
+    pub fn register_native_func(
+        &mut self,
+        phrase: &str,
+        func_id: i32,
+    ) -> Result<(), InferenceError> {
+        let embedding = self.inference.embed(phrase)?;
+        let embed_id = self.inference.store(embedding);
+        self.handlers.insert(embed_id, func_id);
+        Ok(())
     }
-}
-
-pub fn compile(
-    statements: Vec<Statement>,
-    annotation_handlers: HashMap<String, AnnotationHandler>,
-    inference: Rc<Inference>,
-) -> Result<ClassBytecode, CompileError> {
-    Compiler::new(annotation_handlers, inference).emit_class_bytecode(statements)
 }

@@ -10,6 +10,7 @@ use super::Value;
 pub struct Interpreter {
     source_files: Rc<RefCell<HashMap<String, ClassBytecode>>>,
     globals: HashMap<String, Value>,
+    builtin_funcs: Vec<Box<dyn Fn(Vec<Value>) -> Value>>,
 }
 
 #[derive(Debug)]
@@ -40,6 +41,7 @@ impl Interpreter {
         Interpreter {
             source_files: Rc::new(RefCell::new(HashMap::new())),
             globals: HashMap::new(),
+            builtin_funcs: Vec::new(),
         }
     }
 
@@ -125,23 +127,22 @@ impl Interpreter {
                     stack.push(member);
                 }
                 Instruction::Do { action, n_args } => {
-                    let this = &stack[0];
+                    let args = stack.split_off(stack.len() - n_args);
 
-                    let address = {
-                        let source_files = self.source_files.borrow();
-                        let code = source_files.get(file_name).unwrap();
-                        *code.handler_addresses.get(*action).unwrap()
+                    let result = if *action >= 0 {
+                        let address = {
+                            let source_files = self.source_files.borrow();
+                            let code = source_files.get(file_name).unwrap();
+                            *code.handler_addresses.get(*action as usize).unwrap()
+                        };
+
+                        self.call_function(file_name, address, args)?
+                    } else {
+                        let func_idx = -action - 1;
+                        Some(self.builtin_funcs[func_idx as usize](args))
                     };
 
-                    let upvalues = vec![this.clone()];
-
-                    if address >= 0 {
-                        let args = stack.split_off(stack.len() - n_args);
-                        let result = self.call_function(file_name, address, args)?;
-                        stack.push(result.unwrap_or(Value::Null));
-                    } else {
-                        // todo
-                    }
+                    stack.push(result.unwrap_or(Value::Null));
                 }
                 Instruction::Store => {
                     let val = stack.pop().unwrap();
@@ -184,5 +185,10 @@ impl Interpreter {
         }
 
         return Err(RuntimeError::OutOfInstructions);
+    }
+
+    pub fn add_builtin_function(&mut self, func: Box<dyn Fn(Vec<Value>) -> Value>) -> i32 {
+        self.builtin_funcs.push(func);
+        -(self.builtin_funcs.len() as i32)
     }
 }
