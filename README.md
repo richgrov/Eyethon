@@ -1,30 +1,28 @@
-# MicroGD
+# Eyethon
 
-A lightweight, embeddable GDScript interpreter
+(pronounced "eye-thon")
+
+A lightweight, embeddable, inspectable Python interpreter
 
 ## Why?
 
-GDScript is a great language for its domain: game engines
-
-- Beginner-friendly, approachable syntax
-- Established ecosystem of editors, IDEs, and tools
-- Potential for better performance thanks to reference counting and gradual typing
-- Object-oriented nature is perfect for game programming
+In the age of AI, writing code will be a task more for machines rather than humans. Models excel at
+writing Python, but it performance and lack of portability restrict its use. Eyethon aims to
+interpret a subset of Python that's not only runnable, but who's syntax tree is inspectable to be
+converted to other languages, formats, or domains.
 
 ## Goals and non-goals
 
-MicroGD hopes to:
+Eyethon hopes to:
 
-- Be near-spec-compliant in parsing and execution
-- Very lightweight, even embeddable in microcontrollers (hence the name)
-- Support LSP and debugging integration
+- Be very lightweight
+- Support some of Python's standard library
+- Provide an API for running and inspecting code
 
 MicroGD **does not** hope to:
 
 - Use Just-in-time compilation
-- Adhere 100% to every detail of GDScript (although this would be ideal)
-- Support future features of GDScript, as this could result in sacrificing the core hopes of
-  MicroGD, depending on how exotic the feature is
+- Adhere 100% to every detail of Python (although this would be ideal)
 
 # Roadmap
 
@@ -37,8 +35,8 @@ MicroGD **does not** hope to:
 - ❌ LSP
 - ❌ Debugger
 
-MicroGD uses tests from the official
-[Godot Engine Repository](https://github.com/godotengine/godot/tree/master/modules/gdscript/tests)
-to ensure identical behavior.
+Eyethon uses tests from
+[PocketPy](https://github.com/godotengine/godot/tree/master/modules/gdscript/tests)
+to test spec compliance.
 
 For now, working features are prioritized over performance and 100% compatibility.
