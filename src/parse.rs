@@ -705,9 +705,7 @@ impl Parser {
     }
 
     fn assert_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        self.expect(TokenType::LParen)?;
         let condition = self.expression()?;
-        self.expect(TokenType::RParen)?;
 
         Ok(Statement {
             ty: StatementType::Assert { condition },
