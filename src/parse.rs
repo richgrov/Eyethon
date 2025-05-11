@@ -216,6 +216,7 @@ pub enum BinaryOperator {
     Multiply,
     Divide,
     Modulo,
+    Exponent,
     GreaterThan,
     LessThan,
     GreaterThanOrEqual,
@@ -1512,8 +1513,37 @@ impl Parser {
                 self.consume_token();
                 self.prefix()
             }
-            _ => self.attribute_access(),
+            _ => self.exponent(),
         }
+    }
+
+    fn exponent(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.attribute_access()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+            let token = token.clone();
+
+            match token.ty {
+                TokenType::StarStar => {
+                    self.consume_token();
+                    let right = self.attribute_access()?;
+
+                    expr = Expression {
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(right),
+                            operator: BinaryOperator::Exponent,
+                        },
+                        line: token.line,
+                        column: token.column,
+                    }
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn attribute_access(&mut self) -> Result<Expression, ParseError> {

@@ -61,6 +61,7 @@ pub enum TokenType {
     Minus,
     MinusEq,
     Star,
+    StarStar,
     StarEq,
     Slash,
     SlashEq,
@@ -159,6 +160,7 @@ impl TokenType {
             Minus => "-",
             MinusEq => "-=",
             Star => "*",
+            StarStar => "**",
             StarEq => "*=",
             Slash => "/",
             SlashEq => "/=",
@@ -309,13 +311,17 @@ impl Tokenizer {
                     _ => break Ok(self.mk_token(TokenType::Minus)),
                 },
 
-                '*' => {
-                    if self.peek_char() == Some('=') {
+                '*' => match self.peek_char() {
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::StarEq));
                     }
-                    break Ok(self.mk_token(TokenType::Star));
-                }
+                    Some('*') => {
+                        self.next_char();
+                        break Ok(self.mk_token(TokenType::StarStar));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::Star)),
+                },
 
                 '/' => {
                     if self.peek_char() == Some('=') {
