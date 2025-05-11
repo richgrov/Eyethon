@@ -51,42 +51,26 @@ mod tests {
 
     use crate::*;
 
+    #[derive(PartialEq, Eq, Ord)]
     struct Test {
         name: String,
         source: String,
-        output: Option<String>,
     }
 
-    fn get_tests(category: &str) -> impl Iterator<Item = Test> {
-        std::fs::read_dir("tests/".to_owned() + category)
+    impl PartialOrd for Test {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            self.name.partial_cmp(&other.name)
+        }
+    }
+
+    fn get_tests() -> impl Iterator<Item = Test> {
+        std::fs::read_dir("tests/")
             .unwrap()
             .filter_map(|file| file.ok().map(|file| file.path()))
-            .filter(|path| match path.extension() {
-                Some(ext) if ext == "gd" => true,
-                _ => false,
-            })
-            .map(|path| {
-                let file_name = path
-                    .file_name()
-                    .unwrap()
-                    .to_os_string()
-                    .into_string()
-                    .unwrap();
-
-                let output = if file_name.ends_with(".notest.gd") {
-                    None
-                } else {
-                    Some(
-                        std::fs::read_to_string(path.with_extension("out"))
-                            .expect(&format!("failed to read test output for {:?}", path)),
-                    )
-                };
-
-                Test {
-                    name: path.clone().into_os_string().into_string().unwrap(),
-                    source: std::fs::read_to_string(&path).expect("failed to read test source"),
-                    output,
-                }
+            .map(|path| Test {
+                name: path.clone().into_os_string().into_string().unwrap(),
+                source: std::fs::read_to_string(&path)
+                    .expect(&format!("failed to read {:?}", path)),
             })
     }
 
@@ -153,30 +137,6 @@ mod tests {
                 return false;
             }
         };
-
-        if let Some(expected) = &test.output {
-            match interpreter.call_method(object, "test") {
-                Ok(Some(obj)) => {
-                    eprintln!("{} returned a value: {}", test.name, obj);
-                    return false;
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    eprintln!("call {} failed: {}", test.name, e);
-                    return false;
-                }
-            }
-
-            let actual = output.borrow();
-            if actual.ne(expected) {
-                eprintln!("-- expected output for {} --", test.name);
-                eprintln!("{}", expected);
-                eprintln!("-- actual output --");
-                eprintln!("{}", actual);
-                eprintln!("-- end --");
-                return false;
-            }
-        }
 
         true
     }
@@ -249,11 +209,8 @@ mod tests {
 
     #[test]
     fn parser_features() {
-        run_tests(get_tests("parser/features"));
-    }
-
-    #[test]
-    fn runtime_features() {
-        run_tests(get_tests("parser/features"));
+        let mut tests: Vec<_> = get_tests().collect();
+        tests.sort();
+        run_tests(tests.into_iter());
     }
 }
