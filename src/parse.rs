@@ -125,6 +125,10 @@ pub enum StatementType {
         name: Option<String>,
         values: Vec<(String, Option<i64>)>,
     },
+    Import {
+        from: Option<String>,
+        imports: Vec<(String, Option<String>)>,
+    },
     Pass,
 }
 
@@ -457,6 +461,62 @@ impl Parser {
             TokenType::Assert => {
                 self.consume_token();
                 return self.assert_statement(first_tok);
+            }
+            TokenType::From => {
+                self.consume_token();
+                let from_module = self.expect_identifier()?.to_string();
+                self.expect(TokenType::Import)?;
+                let mut imports = Vec::new();
+
+                loop {
+                    let identifier = self.expect_identifier()?.to_string();
+                    let alias = if self.consume_if(TokenType::As) {
+                        Some(self.expect_identifier()?.to_string())
+                    } else {
+                        None
+                    };
+                    imports.push((identifier, alias));
+
+                    if !self.consume_if(TokenType::Comma) {
+                        break;
+                    }
+                }
+
+                return Ok(Statement {
+                    ty: StatementType::Import {
+                        from: Some(from_module),
+                        imports,
+                    },
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
+            }
+            TokenType::Import => {
+                self.consume_token();
+                let mut imports = Vec::new();
+
+                loop {
+                    let identifier = self.expect_identifier()?.to_string();
+                    let alias = if self.consume_if(TokenType::As) {
+                        Some(self.expect_identifier()?.to_string())
+                    } else {
+                        None
+                    };
+                    imports.push((identifier, alias));
+
+                    if !self.consume_if(TokenType::Comma) {
+                        break;
+                    }
+                }
+
+                return Ok(Statement {
+                    ty: StatementType::Import {
+                        from: None,
+                        imports,
+                    },
+                    line: first_tok.line,
+                    column: first_tok.column,
+                });
             }
             TokenType::ClassName => {
                 self.consume_token();
