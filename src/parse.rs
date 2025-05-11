@@ -194,6 +194,8 @@ pub enum ExpressionType {
     Function(Function),
     FunctionCall(FunctionCallExpression),
     Negate(Box<Expression>),
+    Not(Box<Expression>),
+    BitwiseNot(Box<Expression>),
     Binary {
         lhs: Box<Expression>,
         rhs: Box<Expression>,
@@ -232,6 +234,9 @@ pub enum BinaryOperator {
     Or,
     In,
     NotIn,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
 }
 
 impl TryFrom<TokenType> for BinaryOperator {
@@ -256,6 +261,9 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::And | TokenType::DoubleAmpersand => Ok(BinaryOperator::And),
             TokenType::Or | TokenType::DoublePipe => Ok(BinaryOperator::Or),
             TokenType::In => Ok(BinaryOperator::In),
+            TokenType::Ampersand => Ok(BinaryOperator::BitwiseAnd),
+            TokenType::Pipe => Ok(BinaryOperator::BitwiseOr),
+            TokenType::Carot => Ok(BinaryOperator::BitwiseXor),
             _ => Err(()),
         }
     }
@@ -1339,7 +1347,7 @@ impl Parser {
     }
 
     fn logical(&mut self) -> Result<Expression, ParseError> {
-        let mut expr = self.in_expr()?;
+        let mut expr = self.not()?;
 
         loop {
             let Some(token) = self.peek_tok() else { break };
@@ -1356,7 +1364,7 @@ impl Parser {
                         column: expr.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expr),
-                            rhs: Box::new(self.in_expr()?),
+                            rhs: Box::new(self.not()?),
                             operator: op,
                         },
                     };
@@ -1366,6 +1374,28 @@ impl Parser {
         }
 
         Ok(expr)
+    }
+
+    fn not(&mut self) -> Result<Expression, ParseError> {
+        if let Some(Token {
+            ty: TokenType::Not,
+            line,
+            column,
+        }) = self.peek_tok()
+        {
+            let line = *line;
+            let column = *column;
+
+            self.consume_token();
+            let expr = self.in_expr()?;
+            return Ok(Expression {
+                line,
+                column,
+                ty: ExpressionType::Not(Box::new(expr)),
+            });
+        }
+
+        self.in_expr()
     }
 
     fn in_expr(&mut self) -> Result<Expression, ParseError> {
@@ -1414,7 +1444,7 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.bit_shift()?;
+        let mut expression = self.bitwise_or()?;
 
         loop {
             let Some(operator) = self.peek_tok() else {
@@ -1429,7 +1459,7 @@ impl Parser {
                         column: expression.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expression),
-                            rhs: Box::new(self.bit_shift()?),
+                            rhs: Box::new(self.bitwise_or()?),
                             operator: op,
                         },
                     }
@@ -1439,6 +1469,87 @@ impl Parser {
         }
 
         Ok(expression)
+    }
+
+    fn bitwise_or(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.bitwise_xor()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Pipe => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.bitwise_xor()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_xor(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.bitwise_and()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Carot => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.bitwise_and()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
+    }
+
+    fn bitwise_and(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.bit_shift()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::Ampersand => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.bit_shift()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn bit_shift(&mut self) -> Result<Expression, ParseError> {
@@ -1545,6 +1656,21 @@ impl Parser {
             }) => {
                 self.consume_token();
                 self.prefix()
+            }
+            Some(Token {
+                ty: TokenType::Tilde,
+                line,
+                column,
+            }) => {
+                let line = *line;
+                let column = *column;
+                self.consume_token();
+
+                Ok(Expression {
+                    ty: ExpressionType::BitwiseNot(Box::new(self.prefix()?)),
+                    line,
+                    column,
+                })
             }
             _ => self.exponent(),
         }
