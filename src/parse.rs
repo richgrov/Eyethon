@@ -16,6 +16,7 @@ pub enum ReassignmentOperator {
     SubtractAssign,
     MultiplyAssign,
     DivideAssign,
+    IntegerDivideAssign,
     ModuloAssign,
     BitwiseAndAssign,
     BitwiseOrAssign,
@@ -34,6 +35,7 @@ impl TryFrom<TokenType> for ReassignmentOperator {
             TokenType::MinusEq => Ok(ReassignmentOperator::SubtractAssign),
             TokenType::StarEq => Ok(ReassignmentOperator::MultiplyAssign),
             TokenType::SlashEq => Ok(ReassignmentOperator::DivideAssign),
+            TokenType::SlashSlashEq => Ok(ReassignmentOperator::IntegerDivideAssign),
             TokenType::PercentEq => Ok(ReassignmentOperator::ModuloAssign),
             TokenType::AmpersandEq => Ok(ReassignmentOperator::BitwiseAndAssign),
             TokenType::PipeEq => Ok(ReassignmentOperator::BitwiseOrAssign),
@@ -215,6 +217,7 @@ pub enum BinaryOperator {
     Subtract,
     Multiply,
     Divide,
+    IntegerDivide,
     Modulo,
     Exponent,
     GreaterThan,
@@ -238,6 +241,7 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::Minus => Ok(BinaryOperator::Subtract),
             TokenType::Star => Ok(BinaryOperator::Multiply),
             TokenType::Slash => Ok(BinaryOperator::Divide),
+            TokenType::SlashSlash => Ok(BinaryOperator::IntegerDivide),
             TokenType::Percent => Ok(BinaryOperator::Modulo),
             TokenType::LChevron => Ok(BinaryOperator::GreaterThan),
             TokenType::RChevron => Ok(BinaryOperator::LessThan),
@@ -1467,7 +1471,7 @@ impl Parser {
             let Some(token) = self.peek_tok() else { break };
 
             match token.ty {
-                TokenType::Star | TokenType::Slash | TokenType::Percent => {
+                TokenType::Star | TokenType::Slash | TokenType::SlashSlash | TokenType::Percent => {
                     let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
                     self.consume_token();
                     expr = Expression {

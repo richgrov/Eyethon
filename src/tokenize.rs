@@ -65,6 +65,8 @@ pub enum TokenType {
     StarEq,
     Slash,
     SlashEq,
+    SlashSlash,
+    SlashSlashEq,
     Percent,
     PercentEq,
     Bang,
@@ -164,6 +166,8 @@ impl TokenType {
             StarEq => "*=",
             Slash => "/",
             SlashEq => "/=",
+            SlashSlash => "//",
+            SlashSlashEq => "//=",
             Percent => "%",
             PercentEq => "%=",
             Bang => "!",
@@ -323,13 +327,21 @@ impl Tokenizer {
                     _ => break Ok(self.mk_token(TokenType::Star)),
                 },
 
-                '/' => {
-                    if self.peek_char() == Some('=') {
+                '/' => match self.peek_char() {
+                    Some('=') => {
                         self.next_char();
                         break Ok(self.mk_token(TokenType::SlashEq));
                     }
-                    break Ok(self.mk_token(TokenType::Slash));
-                }
+                    Some('/') => {
+                        self.next_char();
+                        if self.peek_char() == Some('=') {
+                            self.next_char();
+                            break Ok(self.mk_token(TokenType::SlashSlashEq));
+                        }
+                        break Ok(self.mk_token(TokenType::SlashSlash));
+                    }
+                    _ => break Ok(self.mk_token(TokenType::Slash)),
+                },
 
                 '%' => {
                     if self.peek_char() == Some('=') {
