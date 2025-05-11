@@ -220,6 +220,8 @@ pub enum BinaryOperator {
     IntegerDivide,
     Modulo,
     Exponent,
+    ShiftLeft,
+    ShiftRight,
     GreaterThan,
     LessThan,
     GreaterThanOrEqual,
@@ -243,6 +245,8 @@ impl TryFrom<TokenType> for BinaryOperator {
             TokenType::Slash => Ok(BinaryOperator::Divide),
             TokenType::SlashSlash => Ok(BinaryOperator::IntegerDivide),
             TokenType::Percent => Ok(BinaryOperator::Modulo),
+            TokenType::DoubleLChevron => Ok(BinaryOperator::ShiftLeft),
+            TokenType::DoubleRChevron => Ok(BinaryOperator::ShiftRight),
             TokenType::LChevron => Ok(BinaryOperator::GreaterThan),
             TokenType::RChevron => Ok(BinaryOperator::LessThan),
             TokenType::LChevronEq => Ok(BinaryOperator::GreaterThanOrEqual),
@@ -1410,7 +1414,7 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> Result<Expression, ParseError> {
-        let mut expression = self.add_sub()?;
+        let mut expression = self.bit_shift()?;
 
         loop {
             let Some(operator) = self.peek_tok() else {
@@ -1425,7 +1429,7 @@ impl Parser {
                         column: expression.column,
                         ty: ExpressionType::Binary {
                             lhs: Box::new(expression),
-                            rhs: Box::new(self.add_sub()?),
+                            rhs: Box::new(self.bit_shift()?),
                             operator: op,
                         },
                     }
@@ -1435,6 +1439,33 @@ impl Parser {
         }
 
         Ok(expression)
+    }
+
+    fn bit_shift(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.add_sub()?;
+
+        loop {
+            let Some(token) = self.peek_tok() else { break };
+
+            match token.ty {
+                TokenType::DoubleLChevron | TokenType::DoubleRChevron => {
+                    let op = BinaryOperator::try_from(token.ty.clone()).unwrap();
+                    self.consume_token();
+                    expr = Expression {
+                        line: expr.line,
+                        column: expr.column,
+                        ty: ExpressionType::Binary {
+                            lhs: Box::new(expr),
+                            rhs: Box::new(self.add_sub()?),
+                            operator: op,
+                        },
+                    };
+                }
+                _ => break,
+            }
+        }
+
+        Ok(expr)
     }
 
     fn add_sub(&mut self) -> Result<Expression, ParseError> {
