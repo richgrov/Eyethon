@@ -478,7 +478,7 @@ impl Parser {
                         self.consume_token();
                         return self.var_or_const(next_token, true);
                     }
-                    TokenType::Func => {
+                    TokenType::Def => {
                         self.consume_token();
                         let expr = self.parse_func(true)?;
                         return Ok(Statement {
@@ -493,7 +493,7 @@ impl Parser {
                     }
                     _ => {
                         return Err(ParseError::UnexpectedToken {
-                            expected: vec![TokenType::Var, TokenType::Const, TokenType::Func],
+                            expected: vec![TokenType::Var, TokenType::Const, TokenType::Def],
                             actual: next_token,
                         });
                     }
@@ -1607,7 +1607,7 @@ impl Parser {
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
-                TokenType::Func => self.parse_func(false)?,
+                TokenType::Def => self.parse_func(false)?,
                 TokenType::LParen => {
                     self.indent_aware_stack.push(false);
                     let expr = self.expression()?;
