@@ -169,6 +169,7 @@ pub struct Function {
 pub struct FunctionParameter {
     pub name: String,
     pub ty: Option<Type>,
+    pub asterisks: u8,
     pub default: Option<Expression>,
 }
 
@@ -1847,6 +1848,14 @@ impl Parser {
                 break;
             }
 
+            let asterisks = if self.consume_if(TokenType::Star) {
+                1
+            } else if self.consume_if(TokenType::StarStar) {
+                2
+            } else {
+                0
+            };
+
             let name = self.expect_identifier()?;
 
             let ty = if self.consume_if(TokenType::Colon) {
@@ -1855,7 +1864,7 @@ impl Parser {
                 None
             };
 
-            let default_value = if self.consume_if(TokenType::Equal) {
+            let default_value = if asterisks == 0 && self.consume_if(TokenType::Equal) {
                 Some(self.expression()?)
             } else {
                 None
@@ -1865,6 +1874,7 @@ impl Parser {
                 name,
                 ty,
                 default: default_value,
+                asterisks,
             });
 
             if !self.consume_if(TokenType::Comma) {
