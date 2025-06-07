@@ -54,6 +54,9 @@ pub enum TokenType {
     True,
     False,
     Void,
+    Try,
+    Except,
+    Finally,
 
     Plus,
     PlusEq,
@@ -156,6 +159,9 @@ impl TokenType {
             True => "true",
             False => "false",
             Void => "void",
+            Try => "try",
+            Except => "except",
+            Finally => "finally",
             Plus => "+",
             PlusEq => "+=",
             Minus => "-",
@@ -597,6 +603,9 @@ impl Tokenizer {
             "true" => TokenType::True,
             "false" => TokenType::False,
             "void" => TokenType::Void,
+            "try" => TokenType::Try,
+            "except" => TokenType::Except,
+            "finally" => TokenType::Finally,
             _ => TokenType::Identifier(ident),
         };
 

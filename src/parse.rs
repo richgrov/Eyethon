@@ -121,7 +121,19 @@ pub enum StatementType {
         from: Option<String>,
         imports: Vec<(String, Option<String>)>,
     },
+    Try {
+        try_block: Vec<Statement>,
+        except_blocks: Vec<CatchBlock>,
+        finally_block: Vec<Statement>,
+    },
     Pass,
+}
+
+#[derive(Debug)]
+pub struct CatchBlock {
+    pub exception_type: Box<Expression>,
+    pub expression_var: Option<String>,
+    pub statements: Vec<Statement>,
 }
 
 #[derive(Debug)]
@@ -569,6 +581,10 @@ impl Parser {
                 self.consume_token();
                 return self.parse_match(first_tok);
             }
+            TokenType::Try => {
+                self.consume_token();
+                return self.try_statement(first_tok);
+            }
             TokenType::Return => {
                 self.consume_token();
 
@@ -702,6 +718,52 @@ impl Parser {
             },
             line: first_tok.line,
             column: first_tok.column,
+        })
+    }
+
+    fn try_statement(&mut self, tok: Token) -> Result<Statement, ParseError> {
+        self.expect(TokenType::Colon)?;
+        self.expect(TokenType::Eol)?;
+        let try_block = self.parse_block_scope()?;
+
+        let mut catch_blocks = Vec::new();
+
+        while self.consume_if(TokenType::Except) {
+            let exception_type = self.expression()?;
+
+            let expression_var = if self.consume_if(TokenType::As) {
+                Some(self.expect_identifier()?)
+            } else {
+                None
+            };
+
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Eol)?;
+            let statements = self.parse_block_scope()?;
+
+            catch_blocks.push(CatchBlock {
+                exception_type: Box::new(exception_type),
+                expression_var,
+                statements,
+            });
+        }
+
+        let finally_block = if self.consume_if(TokenType::Finally) {
+            self.expect(TokenType::Colon)?;
+            self.expect(TokenType::Eol)?;
+            self.parse_block_scope()?
+        } else {
+            Vec::new()
+        };
+
+        Ok(Statement {
+            ty: StatementType::Try {
+                try_block,
+                except_blocks: catch_blocks,
+                finally_block,
+            },
+            line: tok.line,
+            column: tok.column,
         })
     }
 
