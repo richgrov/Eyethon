@@ -24,6 +24,7 @@ pub enum Instruction {
     PushMemberFunction(String),
     Pop,
     MakeArray { len: usize },
+    MakeTuple { len: usize },
     Call { n_args: usize },
     Store,
     Return,
@@ -43,6 +44,7 @@ impl fmt::Display for Instruction {
             Instruction::PushMemberFunction(s) => write!(f, "pushmemf \"{}\"", s),
             Instruction::Pop => write!(f, "pop"),
             Instruction::MakeArray { len } => write!(f, "mkarray {}", len),
+            Instruction::MakeTuple { len } => write!(f, "mktuple {}", len),
             Instruction::Call { n_args } => write!(f, "call {}", n_args),
             Instruction::Store => write!(f, "store"),
             Instruction::Return => write!(f, "return"),
@@ -288,6 +290,13 @@ impl Compiler {
                     self.evaluate_expression(instructions, expression)?;
                 }
                 instructions.push(Instruction::MakeArray { len });
+            }
+            ExpressionType::Tuple(expressions) => {
+                let len = expressions.len();
+                for expression in expressions {
+                    self.evaluate_expression(instructions, expression)?;
+                }
+                instructions.push(Instruction::MakeTuple { len });
             }
             ExpressionType::FunctionCall(expr) => {
                 let n_args = expr.args.len();

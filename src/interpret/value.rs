@@ -13,6 +13,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Array(Vec<Value>),
+    Tuple(Vec<Value>),
     Dictionary(Rc<RefCell<HashMap<Value, Value>>>),
     Object {
         variables: Rc<RefCell<Vec<Value>>>,
@@ -34,7 +35,7 @@ impl Hash for Value {
             Value::Integer(i) => i.hash(state),
             Value::Float(f) => f.to_bits().hash(state),
             Value::String(s) => s.hash(state),
-            Value::Array(o) => {
+            Value::Array(o) | Value::Tuple(o) => {
                 o.len().hash(state);
                 for value in o {
                     value.hash(state);
@@ -78,6 +79,7 @@ impl PartialEq for Value {
             (Value::Integer(i1), Value::Integer(i2)) => i1 == i2,
             (Value::Float(f1), Value::Float(f2)) => f1 == f2,
             (Value::String(s1), Value::String(s2)) => s1 == s2,
+            (Value::Array(a1), Value::Array(a2)) | (Value::Tuple(a1), Value::Tuple(a2)) => a1 == a2,
             (Value::Dictionary(o1), Value::Dictionary(o2)) => {
                 let dict1 = o1.borrow();
                 let dict2 = o2.borrow();
@@ -142,6 +144,19 @@ impl fmt::Display for Value {
                     write!(f, "{}", v)?;
                 }
                 write!(f, "]")
+            }
+            Value::Tuple(a) => {
+                write!(f, "(")?;
+                for (i, v) in a.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}", v)?;
+                }
+                if a.len() == 1 {
+                    write!(f, ",")?;
+                }
+                write!(f, ")")
             }
             Value::Dictionary(o) => {
                 write!(f, "{{")?;
