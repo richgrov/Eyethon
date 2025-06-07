@@ -86,6 +86,10 @@ pub enum StatementType {
         operator: ReassignmentOperator,
         value: Expression,
     },
+    ChainedReassignment {
+        chain: Vec<(Expression, ReassignmentOperator)>,
+        value: Expression,
+    },
     Extends(String),
     If {
         condition: Expression,
@@ -1025,31 +1029,49 @@ impl Parser {
     }
 
     fn reassignment_statement(&mut self) -> Result<Statement, ParseError> {
-        let key = self.expression()?;
+        let mut lhs = self.expression()?;
+        let line = lhs.line;
+        let column = lhs.column;
 
-        let Some(reassignment) = self
+        let mut chain: Vec<(Expression, ReassignmentOperator)> = Vec::new();
+
+        while let Some(op) = self
             .peek_tok()
             .and_then(|tok| ReassignmentOperator::try_from(tok.ty.clone()).ok())
-        else {
+        {
+            self.consume_token();
+            chain.push((lhs, op));
+            lhs = self.expression()?;
+        }
+
+        if chain.is_empty() {
             return Ok(Statement {
-                line: key.line,
-                column: key.column,
-                ty: StatementType::Expression(key),
+                line: lhs.line,
+                column: lhs.column,
+                ty: StatementType::Expression(lhs),
             });
-        };
+        }
 
-        self.consume_token();
-        let value = self.expression()?;
+        let value = lhs;
 
-        Ok(Statement {
-            line: key.line,
-            column: key.column,
-            ty: StatementType::Reassignment {
-                key,
-                operator: reassignment,
-                value,
-            },
-        })
+        if chain.len() == 1 {
+            let (key, operator) = chain.into_iter().next().unwrap();
+            Ok(Statement {
+                line,
+                column,
+                ty: StatementType::Reassignment {
+                    key,
+                    operator,
+                    value,
+                },
+            })
+        } else {
+            Ok(Statement {
+                line,
+                column,
+                ty: StatementType::ChainedReassignment { chain, value },
+            })
+        }
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
