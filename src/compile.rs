@@ -384,6 +384,9 @@ impl Compiler {
             ExpressionType::Float(f) => {
                 instructions.push(Instruction::PushFloat(f));
             }
+            ExpressionType::Ellipsis => {
+                instructions.push(Instruction::PushGlobal("Ellipsis".to_owned()));
+            }
             ExpressionType::Array(expressions) => {
                 let len = expressions.len();
                 for expression in expressions {

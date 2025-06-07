@@ -125,6 +125,8 @@ mod tests {
             })),
         );
 
+        interpreter.set_global("Ellipsis", Value::String("Ellipsis".to_owned()));
+
         if let Err(e) = interpreter.register_class(class) {
             eprintln!("register class failed: {}", e);
             return false;

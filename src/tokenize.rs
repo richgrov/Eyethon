@@ -103,6 +103,7 @@ pub enum TokenType {
     Semicolon,
     Dot,
     DotDot,
+    Ellipsis,
     Tilde,
     Dollar,
     Arrow,
@@ -206,6 +207,7 @@ impl TokenType {
             Semicolon => ";",
             Dot => ".",
             DotDot => "..",
+            Ellipsis => "...",
             Tilde => "~",
             Dollar => "$",
             Arrow => "->",
@@ -459,6 +461,14 @@ impl Tokenizer {
                 ';' => break Ok(self.mk_token(TokenType::Semicolon)),
 
                 '.' => match self.peek_char() {
+                    Some('.') => {
+                        self.next_char();
+                        if self.peek_char() == Some('.') {
+                            self.next_char();
+                            break Ok(self.mk_token(TokenType::Ellipsis));
+                        }
+                        break Ok(self.mk_token(TokenType::DotDot));
+                    }
                     Some(c) if c.is_ascii_digit() => break self.number('.'),
                     _ => break Ok(self.mk_token(TokenType::Dot)),
                 },
