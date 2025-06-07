@@ -430,59 +430,11 @@ impl Parser {
             }
             TokenType::From => {
                 self.consume_token();
-                let from_module = self.expect_identifier()?.to_string();
-                self.expect(TokenType::Import)?;
-                let mut imports = Vec::new();
-
-                loop {
-                    let identifier = self.expect_identifier()?.to_string();
-                    let alias = if self.consume_if(TokenType::As) {
-                        Some(self.expect_identifier()?.to_string())
-                    } else {
-                        None
-                    };
-                    imports.push((identifier, alias));
-
-                    if !self.consume_if(TokenType::Comma) {
-                        break;
-                    }
-                }
-
-                return Ok(Statement {
-                    ty: StatementType::Import {
-                        from: Some(from_module),
-                        imports,
-                    },
-                    line: first_tok.line,
-                    column: first_tok.column,
-                });
+                return self.parse_from_import(first_tok);
             }
             TokenType::Import => {
                 self.consume_token();
-                let mut imports = Vec::new();
-
-                loop {
-                    let identifier = self.expect_identifier()?.to_string();
-                    let alias = if self.consume_if(TokenType::As) {
-                        Some(self.expect_identifier()?.to_string())
-                    } else {
-                        None
-                    };
-                    imports.push((identifier, alias));
-
-                    if !self.consume_if(TokenType::Comma) {
-                        break;
-                    }
-                }
-
-                return Ok(Statement {
-                    ty: StatementType::Import {
-                        from: None,
-                        imports,
-                    },
-                    line: first_tok.line,
-                    column: first_tok.column,
-                });
+                return self.parse_import(first_tok);
             }
             TokenType::Class => {
                 self.consume_token();
@@ -1721,6 +1673,100 @@ impl Parser {
 
         self.indent_aware_stack.pop();
         Ok(kv)
+    }
+
+    fn parse_module_path(&mut self) -> Result<String, ParseError> {
+        let Some(tok) = self.peek_tok().cloned() else {
+            return Err(ParseError::UnexpectedEof);
+        };
+
+        match tok.ty {
+            TokenType::Identifier(_) | TokenType::Dot | TokenType::DotDot | TokenType::Ellipsis => {}
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: vec![TokenType::Identifier("".to_owned())],
+                    actual: tok,
+                });
+            }
+        }
+
+        let mut path = String::new();
+        while let Some(tok) = self.peek_tok() {
+            match &tok.ty {
+                TokenType::Identifier(name) => {
+                    path.push_str(name);
+                    self.consume_token();
+                }
+                TokenType::Dot => {
+                    path.push('.');
+                    self.consume_token();
+                }
+                TokenType::DotDot => {
+                    path.push_str("..");
+                    self.consume_token();
+                }
+                TokenType::Ellipsis => {
+                    path.push_str("...");
+                    self.consume_token();
+                }
+                _ => break,
+            }
+        }
+
+        Ok(path)
+    }
+
+    fn parse_import_list(&mut self) -> Result<Vec<(String, Option<String>)>, ParseError> {
+        let mut imports = Vec::new();
+
+        loop {
+            if self.consume_if(TokenType::Star) {
+                imports.push(("*".to_owned(), None));
+            } else {
+                let name = self.parse_module_path()?;
+                let alias = if self.consume_if(TokenType::As) {
+                    Some(self.expect_identifier()?)
+                } else {
+                    None
+                };
+                imports.push((name, alias));
+            }
+
+            if !self.consume_if(TokenType::Comma) {
+                break;
+            }
+        }
+
+        Ok(imports)
+    }
+
+    fn parse_from_import(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let from_module = self.parse_module_path()?;
+        self.expect(TokenType::Import)?;
+        let in_paren = self.consume_if(TokenType::LParen);
+        let imports = self.parse_import_list()?;
+        if in_paren {
+            self.expect(TokenType::RParen)?;
+        }
+
+        Ok(Statement {
+            ty: StatementType::Import {
+                from: Some(from_module),
+                imports,
+            },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
+    }
+
+    fn parse_import(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
+        let imports = self.parse_import_list()?;
+
+        Ok(Statement {
+            ty: StatementType::Import { from: None, imports },
+            line: first_tok.line,
+            column: first_tok.column,
+        })
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
