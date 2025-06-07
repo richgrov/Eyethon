@@ -185,6 +185,7 @@ pub enum ExpressionType {
     Bool(bool),
     Float(f64),
     Array(Vec<Expression>),
+    Ellipsis,
     Super,
     Preload(String),
     Parenthesis(Box<Expression>),
@@ -1365,21 +1366,20 @@ impl Parser {
             if token.ty == TokenType::Is {
                 self.consume_token();
 
-                let invert = if self.consume_if(TokenType::Not) {
-                    true
-                } else {
-                    false
-                };
-
-                let ty = self.expect_identifier()?;
+                let invert = self.consume_if(TokenType::Not);
+                let rhs = self.await_expr()?;
 
                 expr = Expression {
                     line: expr.line,
                     column: expr.column,
-                    ty: ExpressionType::InstanceOf {
-                        expr: Box::new(expr),
-                        invert,
-                        ty,
+                    ty: ExpressionType::Binary {
+                        lhs: Box::new(expr),
+                        rhs: Box::new(rhs),
+                        operator: if invert {
+                            BinaryOperator::NotEqual
+                        } else {
+                            BinaryOperator::Equal
+                        },
                     },
                 };
             }
@@ -1856,6 +1856,7 @@ impl Parser {
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
                 TokenType::Super => ExpressionType::Super,
+                TokenType::Ellipsis => ExpressionType::Ellipsis,
                 TokenType::Def => self.parse_func(false)?,
                 TokenType::LParen => {
                     self.indent_aware_stack.push(false);
