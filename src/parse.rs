@@ -76,10 +76,6 @@ pub enum StatementType {
         extends: Vec<Expression>,
         statements: Vec<Statement>,
     },
-    Signal {
-        name: String,
-        parameters: Vec<String>,
-    },
     Return(Option<Expression>),
     Match {
         expression: Expression,
@@ -108,15 +104,6 @@ pub enum StatementType {
         statements: Vec<Statement>,
     },
     Expression(Expression),
-    Var {
-        konst: bool,
-        static_: bool,
-        identifier: String,
-        ty: VariableType,
-        value: Option<Expression>,
-        getter: Option<Vec<Statement>>,
-        setter: Option<(String, Vec<Statement>)>,
-    },
     Import {
         from: Option<String>,
         imports: Vec<(String, Option<String>)>,
@@ -140,13 +127,6 @@ pub struct CatchBlock {
 pub struct Type {
     pub ty: String,
     pub generic_args: Vec<String>,
-}
-
-#[derive(Debug)]
-pub enum VariableType {
-    Dynamic,
-    Inferred,
-    Static(Type),
 }
 
 #[derive(Debug)]
@@ -310,12 +290,6 @@ pub enum ParseError {
         column: usize,
     },
     InvalidExpression(Token),
-    InvalidProperty {
-        expected: Vec<String>,
-        actual: String,
-        line: usize,
-        column: usize,
-    },
 }
 
 impl fmt::Display for ParseError {
@@ -378,20 +352,6 @@ impl fmt::Display for ParseError {
                     tok.line,
                     tok.column,
                     tok.ty.generic_name()
-                )
-            }
-            ParseError::InvalidProperty {
-                expected,
-                actual,
-                line,
-                column,
-            } => {
-                let expected_formatted = expected.join(" or ");
-
-                write!(
-                    f,
-                    "{}:{}: expected property accessor {} but found '{}'",
-                    line, column, expected_formatted, actual
                 )
             }
         }
@@ -528,10 +488,6 @@ impl Parser {
                 self.consume_token();
                 return self.parse_class(first_tok);
             }
-            TokenType::Signal => {
-                self.consume_token();
-                return self.parse_signal(first_tok);
-            }
             TokenType::If => {
                 self.consume_token();
                 return self.if_statement(first_tok);
@@ -543,40 +499,6 @@ impl Parser {
             TokenType::For => {
                 self.consume_token();
                 return self.for_statement(first_tok);
-            }
-            TokenType::Static => {
-                self.consume_token();
-
-                let next_token = self.peek_tok().cloned().ok_or(ParseError::UnexpectedEof)?;
-                match next_token.ty {
-                    TokenType::Var | TokenType::Const => {
-                        self.consume_token();
-                        return self.var_or_const(next_token, true);
-                    }
-                    TokenType::Def => {
-                        self.consume_token();
-                        let expr = self.parse_func(true)?;
-                        return Ok(Statement {
-                            ty: StatementType::Expression(Expression {
-                                ty: expr,
-                                line: first_tok.line,
-                                column: first_tok.column,
-                            }),
-                            line: first_tok.line,
-                            column: first_tok.column,
-                        });
-                    }
-                    _ => {
-                        return Err(ParseError::UnexpectedToken {
-                            expected: vec![TokenType::Var, TokenType::Const, TokenType::Def],
-                            actual: next_token,
-                        });
-                    }
-                }
-            }
-            TokenType::Var | TokenType::Const => {
-                self.consume_token();
-                return self.var_or_const(first_tok, false);
             }
             TokenType::Match => {
                 self.consume_token();
@@ -815,33 +737,6 @@ impl Parser {
         })
     }
 
-    fn parse_signal(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
-        let mut parameters = Vec::new();
-
-        self.expect(TokenType::LParen)?;
-
-        loop {
-            if self.consume_if(TokenType::RParen) {
-                break;
-            }
-
-            let param_name = self.expect_identifier()?;
-            parameters.push(param_name);
-
-            if !self.consume_if(TokenType::Comma) {
-                self.expect(TokenType::RParen)?;
-                break;
-            }
-        }
-
-        Ok(Statement {
-            ty: StatementType::Signal { name, parameters },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
-    }
-
     fn if_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let condition = self.expression()?;
 
@@ -919,168 +814,10 @@ impl Parser {
         })
     }
 
-    fn var_or_const(&mut self, first_tok: Token, static_: bool) -> Result<Statement, ParseError> {
-        let konst = first_tok.ty == TokenType::Const;
-        let identifier = self.expect_identifier()?;
-
-        let (ty, value) = if self.consume_if(TokenType::Colon) {
-            if self.consume_if(TokenType::Equal) {
-                let value = self.expression()?;
-                (VariableType::Inferred, Some(value))
-            } else {
-                let ty = self.parse_type()?;
-
-                let value = if self.consume_if(TokenType::Equal) {
-                    Some(self.expression()?)
-                } else {
-                    None
-                };
-
-                (VariableType::Static(ty), value)
-            }
-        } else {
-            let value = if self.consume_if(TokenType::Equal) {
-                Some(self.expression()?)
-            } else {
-                None
-            };
-            (VariableType::Dynamic, value)
-        };
-
-        let (getter, setter) = if self.consume_if(TokenType::Colon) {
-            self.expect(TokenType::Eol)?;
-            self.parse_property()?
-        } else {
-            (None, None)
-        };
-
-        Ok(Statement {
-            ty: StatementType::Var {
-                konst,
-                static_,
-                identifier,
-                ty,
-                value,
-                getter,
-                setter,
-            },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
-    }
-
-    fn parse_property(
-        &mut self,
-    ) -> Result<(Option<Vec<Statement>>, Option<(String, Vec<Statement>)>), ParseError> {
-        let expected_indent = self.indent_stack.last().copied().unwrap_or(0);
-        let mut getter = None;
-        let mut setter = None;
-
-        let indent_info = self
-            .consume_until_nonempty_line()
-            .ok_or(ParseError::UnexpectedEof)?;
-
-        if indent_info.level <= expected_indent {
-            return Err(ParseError::ExpectedIndent {
-                line: indent_info.line,
-                column: indent_info.column,
-            });
-        }
-
-        self.consume_token();
-
-        self.parse_property_accessor(&mut getter, &mut setter)?;
-
-        if let Some(indent_info2) = self.consume_until_nonempty_line() {
-            if indent_info2.level == indent_info.level {
-                self.consume_token();
-                self.parse_property_accessor(&mut getter, &mut setter)?;
-            }
-        }
-
-        Ok((getter, setter))
-    }
-
-    fn parse_property_accessor(
-        &mut self,
-        getter: &mut Option<Vec<Statement>>,
-        setter: &mut Option<(String, Vec<Statement>)>,
-    ) -> Result<(), ParseError> {
-        let (accessor_type, line, column) = match self.expect_token()? {
-            Token {
-                ty: TokenType::Identifier(name),
-                line,
-                column,
-            } => (name.to_owned(), *line, *column),
-            other => {
-                return Err(ParseError::UnexpectedToken {
-                    expected: vec![TokenType::Identifier("".to_owned())],
-                    actual: other.clone(),
-                })
-            }
-        };
-
-        if accessor_type == "get" {
-            if getter.is_some() {
-                return Err(ParseError::InvalidProperty {
-                    expected: vec!["set".to_owned()],
-                    actual: accessor_type,
-                    line,
-                    column,
-                });
-            }
-
-            self.expect(TokenType::Colon)?;
-
-            let getter_block = if self.consume_if(TokenType::Eol) {
-                self.parse_block_scope()?
-            } else {
-                self.parse_single_line_scope()?
-            };
-
-            let _ = getter.insert(getter_block);
-        } else if accessor_type == "set" {
-            if setter.is_some() {
-                return Err(ParseError::InvalidProperty {
-                    expected: vec!["get".to_owned()],
-                    actual: accessor_type,
-                    line,
-                    column,
-                });
-            }
-
-            self.expect(TokenType::LParen)?;
-            let param_name = self.expect_identifier()?;
-            self.expect(TokenType::RParen)?;
-            self.expect(TokenType::Colon)?;
-
-            let setter_block = if self.consume_if(TokenType::Eol) {
-                self.parse_block_scope()?
-            } else {
-                self.parse_single_line_scope()?
-            };
-
-            let _ = setter.insert((param_name, setter_block));
-        } else {
-            return Err(ParseError::InvalidProperty {
-                expected: vec!["get".to_string(), "set".to_string()],
-                actual: accessor_type,
-                line,
-                column,
-            });
-        }
-
-        Ok(())
-    }
-
     fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
         let token = self.expect_token()?.clone();
 
         match &token.ty {
-            TokenType::Var => {
-                let name = self.expect_identifier()?;
-                Ok(Pattern::Variable(name))
-            }
             TokenType::LBrace => {
                 let mut pairs = Vec::new();
                 let mut rest = false;
@@ -1788,25 +1525,6 @@ impl Parser {
     fn literal(&mut self, first_tok: &Token) -> Result<Expression, ParseError> {
         Ok(Expression {
             ty: match first_tok.ty {
-                TokenType::Preload => {
-                    self.expect(TokenType::LParen)?;
-
-                    let path = match self.expect_token()? {
-                        Token {
-                            ty: TokenType::String(path),
-                            ..
-                        } => path.clone(),
-                        other => {
-                            return Err(ParseError::UnexpectedToken {
-                                expected: vec![TokenType::String("".to_owned())],
-                                actual: other.clone(),
-                            })
-                        }
-                    };
-
-                    self.expect(TokenType::RParen)?;
-                    ExpressionType::Preload(path)
-                }
                 TokenType::Identifier(ref name) => ExpressionType::Identifier(name.clone()),
                 TokenType::Null => ExpressionType::Null,
                 TokenType::True => ExpressionType::Bool(true),
@@ -1815,7 +1533,6 @@ impl Parser {
                 TokenType::StringName(ref string) => ExpressionType::StringName(string.clone()),
                 TokenType::Integer(integer) => ExpressionType::Integer(integer),
                 TokenType::Float(float) => ExpressionType::Float(float),
-                TokenType::Super => ExpressionType::Super,
                 TokenType::Ellipsis => ExpressionType::Ellipsis,
                 TokenType::Def => self.parse_func(false)?,
                 TokenType::LParen => {

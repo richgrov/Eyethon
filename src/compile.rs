@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::parse::{Expression, ExpressionType, Statement, StatementType, VariableType};
+use crate::parse::{Expression, ExpressionType, Statement, StatementType};
 
 #[derive(Debug)]
 pub struct ClassBytecode {
@@ -103,12 +103,6 @@ impl fmt::Display for CompileError {
 
 pub type AnnotationHandler = Box<dyn Fn()>;
 
-struct VariableInfo {
-    index: usize,
-    konst: bool,
-    ty: VariableType,
-}
-
 struct FunctionScope {
     num_upvalues: usize,
     locals: Vec<String>,
@@ -154,30 +148,6 @@ impl Compiler {
                 }) => {
                     self.function_entry_points.insert(func.name.clone(), 0);
                     functions.push(func);
-                }
-                StatementType::Var {
-                    konst,
-                    static_,
-                    identifier,
-                    ty,
-                    value,
-                    getter,
-                    setter,
-                } => {
-                    self.member_variables.push(identifier.clone());
-
-                    let Some(val) = value else {
-                        continue;
-                    };
-
-                    instructions.push(Instruction::Duplicate(0));
-                    instructions.push(Instruction::PushString(identifier));
-
-                    let mut expression_instructions = Vec::new();
-                    self.evaluate_expression(&mut expression_instructions, val)?;
-                    instructions.extend(expression_instructions);
-
-                    instructions.push(Instruction::Store);
                 }
                 StatementType::Pass
                 | StatementType::If { .. }
@@ -251,27 +221,6 @@ impl Compiler {
             StatementType::Expression(expr) => {
                 self.evaluate_expression(instructions, expr)?;
                 instructions.push(Instruction::Pop);
-            }
-            StatementType::Var {
-                konst,
-                static_,
-                identifier,
-                ty,
-                value,
-                getter,
-                setter,
-            } => {
-                if static_ || getter.is_some() || setter.is_some() {
-                    return Err(CompileError::OnlyAllowedAtTopLevel);
-                }
-
-                let func_scope = self.function_scope_stack.last_mut().unwrap();
-                func_scope.locals.push(identifier);
-                if let Some(val) = value {
-                    self.evaluate_expression(instructions, val)?;
-                } else {
-                    instructions.push(Instruction::PushNull);
-                }
             }
             other => {
                 return Err(CompileError::NotImplemented {
