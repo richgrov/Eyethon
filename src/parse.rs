@@ -98,7 +98,7 @@ pub enum StatementType {
         statements: Vec<Statement>,
     },
     For {
-        variable: String,
+        variables: Vec<String>,
         var_type: Option<Type>,
         iterator: Expression,
         statements: Vec<Statement>,
@@ -170,6 +170,7 @@ pub enum ExpressionType {
     Bool(bool),
     Float(f64),
     Array(Vec<Expression>),
+    Tuple(Vec<Expression>),
     Ellipsis,
     Super,
     Preload(String),
@@ -601,9 +602,21 @@ impl Parser {
     }
 
     fn for_statement(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let variable = self.expect_identifier()?;
+        let mut variables = Vec::new();
 
-        let var_type = if self.consume_if(TokenType::Colon) {
+        let paren = self.consume_if(TokenType::LParen);
+        variables.push(self.expect_identifier()?);
+        while self.consume_if(TokenType::Comma) {
+            if paren && matches!(self.peek_tok(), Some(Token { ty: TokenType::RParen, .. })) {
+                break;
+            }
+            variables.push(self.expect_identifier()?);
+        }
+        if paren {
+            self.expect(TokenType::RParen)?;
+        }
+
+        let var_type = if variables.len() == 1 && self.consume_if(TokenType::Colon) {
             Some(self.parse_type()?)
         } else {
             None
@@ -617,7 +630,7 @@ impl Parser {
 
         Ok(Statement {
             ty: StatementType::For {
-                variable,
+                variables,
                 var_type,
                 iterator,
                 statements,
@@ -1053,7 +1066,35 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expression, ParseError> {
-        self.is_operator()
+        let mut expr = self.is_operator()?;
+
+        if self.consume_if(TokenType::Comma) {
+            let line = expr.line;
+            let column = expr.column;
+            let mut elements = vec![expr];
+
+            if matches!(self.peek_tok(), Some(Token { ty: TokenType::Eol | TokenType::Semicolon | TokenType::RParen | TokenType::RBracket | TokenType::RBrace, .. })) {
+                return Ok(Expression { ty: ExpressionType::Tuple(elements), line, column });
+            }
+
+            loop {
+                elements.push(self.is_operator()?);
+                if !self.consume_if(TokenType::Comma) {
+                    break;
+                }
+                if matches!(self.peek_tok(), Some(Token { ty: TokenType::Eol | TokenType::Semicolon | TokenType::RParen | TokenType::RBracket | TokenType::RBrace, .. })) {
+                    break;
+                }
+            }
+
+            expr = Expression {
+                ty: ExpressionType::Tuple(elements),
+                line,
+                column,
+            };
+        }
+
+        Ok(expr)
     }
 
     fn is_operator(&mut self) -> Result<Expression, ParseError> {
@@ -1537,10 +1578,36 @@ impl Parser {
                 TokenType::Def => self.parse_func(false)?,
                 TokenType::LParen => {
                     self.indent_aware_stack.push(false);
-                    let expr = self.expression()?;
-                    self.expect(TokenType::RParen)?;
-                    self.indent_aware_stack.pop();
-                    ExpressionType::Parenthesis(Box::new(expr))
+                    if self.consume_if(TokenType::RParen) {
+                        self.indent_aware_stack.pop();
+                        ExpressionType::Tuple(Vec::new())
+                    } else {
+                        let first = self.expression()?;
+                        if self.consume_if(TokenType::Comma) {
+                            let mut elements = vec![first];
+                            if self.consume_if(TokenType::RParen) {
+                                self.indent_aware_stack.pop();
+                                ExpressionType::Tuple(elements)
+                            } else {
+                                loop {
+                                    elements.push(self.expression()?);
+                                    if !self.consume_if(TokenType::Comma) {
+                                        self.expect(TokenType::RParen)?;
+                                        break;
+                                    }
+                                    if self.consume_if(TokenType::RParen) {
+                                        break;
+                                    }
+                                }
+                                self.indent_aware_stack.pop();
+                                ExpressionType::Tuple(elements)
+                            }
+                        } else {
+                            self.expect(TokenType::RParen)?;
+                            self.indent_aware_stack.pop();
+                            ExpressionType::Parenthesis(Box::new(first))
+                        }
+                    }
                 }
                 TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
                 TokenType::LBrace => ExpressionType::Dictionary {

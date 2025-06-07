@@ -153,6 +153,10 @@ impl Interpreter {
                     let elements = stack.split_off(stack.len() - len);
                     stack.push(Value::Array(elements));
                 }
+                Instruction::MakeTuple { len } => {
+                    let elements = stack.split_off(stack.len() - len);
+                    stack.push(Value::Tuple(elements));
+                }
                 Instruction::PushString(s) => {
                     stack.push(Value::String(s.clone()));
                 }
