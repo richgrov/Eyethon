@@ -161,6 +161,13 @@ pub enum FunctionReturnType {
 }
 
 #[derive(Debug)]
+pub struct ComprehensionClause {
+    pub target: String,
+    pub iterator: Expression,
+    pub conditions: Vec<Expression>,
+}
+
+#[derive(Debug)]
 pub enum ExpressionType {
     Identifier(String),
     String(String),
@@ -170,12 +177,21 @@ pub enum ExpressionType {
     Bool(bool),
     Float(f64),
     Array(Vec<Expression>),
+    ListComprehension {
+        element: Box<Expression>,
+        clauses: Vec<ComprehensionClause>,
+    },
     Ellipsis,
     Super,
     Preload(String),
     Parenthesis(Box<Expression>),
     Dictionary {
         kv_pairs: Vec<(String, Expression)>,
+    },
+    DictionaryComprehension {
+        key: Box<Expression>,
+        value: Box<Expression>,
+        clauses: Vec<ComprehensionClause>,
     },
     AttributeAccess {
         expr: Box<Expression>,
@@ -1542,10 +1558,8 @@ impl Parser {
                     self.indent_aware_stack.pop();
                     ExpressionType::Parenthesis(Box::new(expr))
                 }
-                TokenType::LBracket => ExpressionType::Array(self.parse_array_literal()?),
-                TokenType::LBrace => ExpressionType::Dictionary {
-                    kv_pairs: self.parse_dict_literal()?,
-                },
+                TokenType::LBracket => self.parse_list_literal_or_comp()?,
+                TokenType::LBrace => self.parse_dict_literal_or_comp()?,
                 _ => return Err(ParseError::InvalidExpression(first_tok.clone())),
             },
             line: first_tok.line,
@@ -1627,32 +1641,117 @@ impl Parser {
         }))
     }
 
-    fn parse_array_literal(&mut self) -> Result<Vec<Expression>, ParseError> {
-        let mut expressions = Vec::new();
-
-        loop {
-            if self.consume_if(TokenType::RBracket) {
-                break;
-            }
-
-            expressions.push(self.expression()?);
-
-            if !self.consume_if(TokenType::Comma) {
-                self.expect(TokenType::RBracket)?;
-                break;
-            }
+    fn parse_list_literal_or_comp(&mut self) -> Result<ExpressionType, ParseError> {
+        if self.consume_if(TokenType::RBracket) {
+            return Ok(ExpressionType::Array(Vec::new()));
         }
 
-        Ok(expressions)
+        let first = self.expression()?;
+
+        if self.consume_if(TokenType::For) {
+            let clauses = self.parse_comprehension_clauses()?;
+            self.expect(TokenType::RBracket)?;
+            return Ok(ExpressionType::ListComprehension {
+                element: Box::new(first),
+                clauses,
+            });
+        }
+
+        let mut expressions = vec![first];
+
+        while self.consume_if(TokenType::Comma) {
+            if self.consume_if(TokenType::RBracket) {
+                return Ok(ExpressionType::Array(expressions));
+            }
+            expressions.push(self.expression()?);
+        }
+
+        self.expect(TokenType::RBracket)?;
+        Ok(ExpressionType::Array(expressions))
     }
 
-    fn parse_dict_literal(&mut self) -> Result<Vec<(String, Expression)>, ParseError> {
+    fn parse_dict_literal_or_comp(&mut self) -> Result<ExpressionType, ParseError> {
         let mut kv = Vec::new();
         self.indent_aware_stack.push(false);
 
-        loop {
+        if self.consume_if(TokenType::RBrace) {
+            self.indent_aware_stack.pop();
+            return Ok(ExpressionType::Dictionary { kv_pairs: kv });
+        }
+
+        let key_token = self.expect_token()?.clone();
+        match key_token.ty {
+            TokenType::String(_) | TokenType::Integer(_) | TokenType::Identifier(_) => {}
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    expected: vec![
+                        TokenType::String("".to_owned()),
+                        TokenType::Integer(0),
+                        TokenType::Identifier("".to_owned()),
+                    ],
+                    actual: key_token,
+                })
+            }
+        };
+
+        let sep_token = self.expect_token()?.clone();
+
+        if sep_token.ty != TokenType::Colon && sep_token.ty != TokenType::Equal {
+            return Err(ParseError::UnexpectedToken {
+                expected: vec![TokenType::Colon, TokenType::Equal],
+                actual: sep_token,
+            });
+        }
+
+        self.indent_aware_stack.push(true);
+        let value = self.expression()?;
+        self.indent_aware_stack.pop();
+
+        if self.consume_if(TokenType::For) {
+            let key_expr = self.literal(&key_token)?;
+            let clauses = self.parse_comprehension_clauses()?;
+            self.expect(TokenType::RBrace)?;
+            self.indent_aware_stack.pop();
+            return Ok(ExpressionType::DictionaryComprehension {
+                key: Box::new(key_expr),
+                value: Box::new(value),
+                clauses,
+            });
+        }
+
+        let key = match sep_token.ty {
+            TokenType::Colon => match key_token.ty {
+                TokenType::String(key) => key,
+                TokenType::Integer(int) => int.to_string(),
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![TokenType::String("".to_owned()), TokenType::Integer(0)],
+                        actual: key_token.clone(),
+                    })
+                }
+            },
+            TokenType::Equal => match key_token.ty {
+                TokenType::String(key) => key,
+                TokenType::Identifier(key) => key,
+                _ => {
+                    return Err(ParseError::UnexpectedToken {
+                        expected: vec![
+                            TokenType::String("".to_owned()),
+                            TokenType::Identifier("".to_owned()),
+                        ],
+                        actual: key_token.clone(),
+                    })
+                }
+            },
+            _ => unreachable!(),
+        };
+
+        kv.push((key, value));
+
+        while self.consume_if(TokenType::Comma) {
             if self.consume_if(TokenType::RBrace) {
-                break;
+                self.indent_aware_stack.pop();
+                return Ok(ExpressionType::Dictionary { kv_pairs: kv });
             }
 
             let key_token = self.expect_token()?.clone();
@@ -1670,11 +1769,20 @@ impl Parser {
                 }
             };
 
-            let key = match self.expect_token()? {
-                Token {
-                    ty: TokenType::Colon,
-                    ..
-                } => match key_token.ty {
+            let sep_token = self.expect_token()?.clone();
+            if sep_token.ty != TokenType::Colon && sep_token.ty != TokenType::Equal {
+                return Err(ParseError::UnexpectedToken {
+                    expected: vec![TokenType::Colon, TokenType::Equal],
+                    actual: sep_token,
+                });
+            }
+
+            self.indent_aware_stack.push(true);
+            let value = self.expression()?;
+            self.indent_aware_stack.pop();
+
+            let key = match sep_token.ty {
+                TokenType::Colon => match key_token.ty {
                     TokenType::String(key) => key,
                     TokenType::Integer(int) => int.to_string(),
                     _ => {
@@ -1684,10 +1792,7 @@ impl Parser {
                         })
                     }
                 },
-                Token {
-                    ty: TokenType::Equal,
-                    ..
-                } => match key_token.ty {
+                TokenType::Equal => match key_token.ty {
                     TokenType::String(key) => key,
                     TokenType::Identifier(key) => key,
                     _ => {
@@ -1700,27 +1805,44 @@ impl Parser {
                         })
                     }
                 },
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::Colon, TokenType::Equal],
-                        actual: other.clone(),
-                    })
-                }
+                _ => unreachable!(),
             };
 
-            self.indent_aware_stack.push(true);
-            let value = self.expression()?;
-            self.indent_aware_stack.pop();
             kv.push((key, value));
-
-            if !self.consume_if(TokenType::Comma) {
-                self.expect(TokenType::RBrace)?;
-                break;
-            }
         }
 
+        self.expect(TokenType::RBrace)?;
         self.indent_aware_stack.pop();
-        Ok(kv)
+        Ok(ExpressionType::Dictionary { kv_pairs: kv })
+    }
+
+    fn parse_comprehension_clauses(&mut self) -> Result<Vec<ComprehensionClause>, ParseError> {
+        let mut clauses = Vec::new();
+
+        loop {
+            let target = self.expect_identifier()?;
+            self.expect(TokenType::In)?;
+            let iterator = self.expression()?;
+
+            let mut conditions = Vec::new();
+            while self.consume_if(TokenType::If) {
+                conditions.push(self.expression()?);
+            }
+
+            clauses.push(ComprehensionClause {
+                target,
+                iterator,
+                conditions,
+            });
+
+            if self.consume_if(TokenType::For) {
+                continue;
+            }
+
+            break;
+        }
+
+        Ok(clauses)
     }
 
     fn parse_function_args(&mut self) -> Result<Vec<Expression>, ParseError> {
