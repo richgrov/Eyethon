@@ -6,7 +6,6 @@ use crate::parse::{Expression, ExpressionType, Statement, StatementType, Variabl
 #[derive(Debug)]
 pub struct ClassBytecode {
     pub name: String,
-    pub extends: Option<String>,
     pub bytecode: Vec<Instruction>,
     pub functions: HashMap<String, usize>,
     pub member_variables: Vec<String>,
@@ -119,8 +118,6 @@ struct Compiler {
     annotation_handlers: HashMap<String, AnnotationHandler>,
     class_name: Option<String>,
     fallback_class_name: String,
-    extends: Option<String>,
-    non_class_name_statement_seen: bool,
     member_variables: Vec<String>,
     function_entry_points: HashMap<String, usize>,
     function_scope_stack: Vec<FunctionScope>,
@@ -136,8 +133,6 @@ impl Compiler {
             fallback_class_name,
 
             class_name: None,
-            extends: None,
-            non_class_name_statement_seen: false,
             member_variables: Vec::new(),
             function_entry_points: HashMap::new(),
             function_scope_stack: Vec::with_capacity(4),
@@ -153,54 +148,6 @@ impl Compiler {
 
         for statement in statements {
             match statement.ty {
-                StatementType::ClassName {
-                    class_name,
-                    extends,
-                } => {
-                    if self.non_class_name_statement_seen {
-                        return Err(CompileError::InvalidClassName {
-                            line: statement.line,
-                            column: statement.column,
-                        });
-                    }
-
-                    if let Some(_) = self.class_name {
-                        return Err(CompileError::InvalidClassName {
-                            line: statement.line,
-                            column: statement.column,
-                        });
-                    }
-
-                    let _ = self.class_name.insert(class_name);
-
-                    if let Some(ext) = extends {
-                        if let Some(_) = self.extends {
-                            return Err(CompileError::InvalidClassName {
-                                line: statement.line,
-                                column: statement.column,
-                            });
-                        }
-
-                        let _ = self.extends.insert(ext);
-                    }
-                }
-                StatementType::Extends(name) => {
-                    if self.non_class_name_statement_seen {
-                        return Err(CompileError::InvalidExtends {
-                            line: statement.line,
-                            column: statement.column,
-                        });
-                    }
-
-                    if let Some(_) = self.extends {
-                        return Err(CompileError::InvalidExtends {
-                            line: statement.line,
-                            column: statement.column,
-                        });
-                    }
-
-                    let _ = self.extends.insert(name);
-                }
                 StatementType::Expression(Expression {
                     ty: ExpressionType::Function(func),
                     ..
@@ -280,7 +227,6 @@ impl Compiler {
 
         Ok(ClassBytecode {
             name: self.class_name.unwrap_or(self.fallback_class_name),
-            extends: self.extends,
             bytecode: instructions,
             functions: function_entry_points,
             member_variables: self.member_variables,

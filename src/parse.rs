@@ -73,7 +73,7 @@ pub enum StatementType {
     },
     Class {
         name: String,
-        extends: Option<String>,
+        extends: Vec<Expression>,
         statements: Vec<Statement>,
     },
     Signal {
@@ -89,10 +89,6 @@ pub enum StatementType {
         key: Expression,
         operator: ReassignmentOperator,
         value: Expression,
-    },
-    ClassName {
-        class_name: String,
-        extends: Option<String>,
     },
     Extends(String),
     If {
@@ -120,10 +116,6 @@ pub enum StatementType {
         value: Option<Expression>,
         getter: Option<Vec<Statement>>,
         setter: Option<(String, Vec<Statement>)>,
-    },
-    Enum {
-        name: Option<String>,
-        values: Vec<(String, Option<i64>)>,
     },
     Import {
         from: Option<String>,
@@ -519,10 +511,6 @@ impl Parser {
                     column: first_tok.column,
                 });
             }
-            TokenType::ClassName => {
-                self.consume_token();
-                return self.class_name(first_tok);
-            }
             TokenType::Class => {
                 self.consume_token();
                 return self.parse_class(first_tok);
@@ -530,10 +518,6 @@ impl Parser {
             TokenType::Signal => {
                 self.consume_token();
                 return self.parse_signal(first_tok);
-            }
-            TokenType::Extends => {
-                self.consume_token();
-                return self.extends(first_tok);
             }
             TokenType::If => {
                 self.consume_token();
@@ -580,10 +564,6 @@ impl Parser {
             TokenType::Var | TokenType::Const => {
                 self.consume_token();
                 return self.var_or_const(first_tok, false);
-            }
-            TokenType::Enum => {
-                self.consume_token();
-                return self.parse_enum(first_tok);
             }
             TokenType::Match => {
                 self.consume_token();
@@ -725,33 +705,24 @@ impl Parser {
         })
     }
 
-    fn class_name(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let class_name = self.expect_identifier()?;
-
-        let extends = if self.consume_if(TokenType::Extends) {
-            Some(self.expect_identifier()?)
-        } else {
-            None
-        };
-
-        Ok(Statement {
-            ty: StatementType::ClassName {
-                class_name,
-                extends,
-            },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
-    }
-
     fn parse_class(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
         let name = self.expect_identifier()?;
 
-        let extends = if self.consume_if(TokenType::Extends) {
-            Some(self.expect_identifier()?)
-        } else {
-            None
-        };
+        let mut extends = Vec::new();
+        if self.consume_if(TokenType::LParen) {
+            loop {
+                if self.consume_if(TokenType::RParen) {
+                    break;
+                }
+
+                extends.push(self.expression()?);
+
+                if !self.consume_if(TokenType::Comma) {
+                    self.expect(TokenType::RParen)?;
+                    break;
+                }
+            }
+        }
 
         self.expect(TokenType::Colon)?;
         let statements = if self.consume_if(TokenType::Eol) {
@@ -766,16 +737,6 @@ impl Parser {
                 extends,
                 statements,
             },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
-    }
-
-    fn extends(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name = self.expect_identifier()?;
-
-        Ok(Statement {
-            ty: StatementType::Extends(name),
             line: first_tok.line,
             column: first_tok.column,
         })
@@ -1047,70 +1008,6 @@ impl Parser {
         }
 
         Ok(())
-    }
-
-    fn parse_enum(&mut self, first_tok: Token) -> Result<Statement, ParseError> {
-        let name_tok = self.peek_tok().cloned();
-        let name = match name_tok {
-            Some(Token {
-                ty: TokenType::Identifier(name),
-                ..
-            }) => {
-                self.consume_token();
-                Some(name.clone())
-            }
-            _ => None,
-        };
-
-        self.expect(TokenType::LBrace)?;
-
-        let mut values = Vec::new();
-
-        loop {
-            let name = self.expect_identifier()?;
-
-            let ordinal = if self.consume_if(TokenType::Equal) {
-                match self.expect_token()? {
-                    Token {
-                        ty: TokenType::Integer(value),
-                        ..
-                    } => Some(*value),
-                    other => {
-                        return Err(ParseError::UnexpectedToken {
-                            expected: vec![TokenType::Integer(0)],
-                            actual: other.clone(),
-                        })
-                    }
-                }
-            } else {
-                None
-            };
-
-            values.push((name, ordinal));
-
-            match self.expect_token()? {
-                Token {
-                    ty: TokenType::RBrace,
-                    ..
-                } => break,
-                Token {
-                    ty: TokenType::Comma,
-                    ..
-                } => {}
-                other => {
-                    return Err(ParseError::UnexpectedToken {
-                        expected: vec![TokenType::RBrace, TokenType::Comma],
-                        actual: other.clone(),
-                    })
-                }
-            }
-        }
-
-        Ok(Statement {
-            ty: StatementType::Enum { name, values },
-            line: first_tok.line,
-            column: first_tok.column,
-        })
     }
 
     fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
