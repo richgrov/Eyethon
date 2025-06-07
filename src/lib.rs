@@ -67,6 +67,10 @@ mod tests {
         std::fs::read_dir("tests/")
             .unwrap()
             .filter_map(|file| file.ok().map(|file| file.path()))
+            .filter(|path| match path.extension() {
+                Some(ext) if ext == "py" => true,
+                _ => false,
+            })
             .map(|path| Test {
                 name: path.clone().into_os_string().into_string().unwrap(),
                 source: std::fs::read_to_string(&path)
